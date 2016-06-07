@@ -43,7 +43,7 @@ USER main
 
 
 # install Toree
-ENV TOREE_VERSION 0.1.0.dev6
+ENV TOREE_VERSION 0.1.0.dev8
 RUN pip install toree===${TOREE_VERSION}
 RUN jupyter toree install --user
 
@@ -51,7 +51,7 @@ RUN jupyter toree install --user
 USER root
 
 #Eclairjs
-ENV ECLAIRJS_VERSION 0.4
+ENV ECLAIRJS_VERSION 0.5
 RUN wget -q http://repo2.maven.org/maven2/org/eclairjs/eclairjs-nashorn/${ECLAIRJS_VERSION}/eclairjs-nashorn-${ECLAIRJS_VERSION}-jar-with-dependencies.jar && \
     mkdir -p /opt/nashorn/lib && \
     mv eclairjs-nashorn-${ECLAIRJS_VERSION}-jar-with-dependencies.jar /opt/nashorn/lib/eclairjs.jar

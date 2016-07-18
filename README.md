@@ -1,8 +1,6 @@
 EclairJS
 ===================
 
-[![Binder](http://mybinder.org/badge.svg)](http://mybinder.org/repo/EclairJS/eclairjs-examples)
-
 **EclairJS** is a JavaScript client for Apache Spark which is made up of thread components, each with it's own project, [EclairJS Node](https://github.com/EclairJS/eclairjs-node), [EclairJS Nashorn](https://github.com/EclairJS/eclairjs-nashorn/) and , [EclairJS Examples](https://github.com/EclairJS/eclairjs-examples/).
 
 ## EclairJS Node

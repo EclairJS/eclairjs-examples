@@ -1,0 +1,13 @@
+doctype html
+html
+  head
+    title= title
+    link(rel='stylesheet', href='/stylesheets/movie_recommender.css')
+    script(src='/javascript/mr.js')
+ 
+  body(onload='init();')
+    h1= title
+    p Welcome to #{title}
+    div(class="wrapper")
+        div(id="stars" class="starsDiv.acidjs-rating-stars main")
+        div(id="top25" class="top25Div aside")

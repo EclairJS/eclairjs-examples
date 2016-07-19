@@ -36,11 +36,8 @@ var sparkConf = new spark.SparkConf(false)
 	.setAppName("movie_recommender");
 var sc = new spark.SparkContext(sparkConf);
 var sqlContext = new spark.sql.SQLContext(sc);
-var pathToSmallDataset = process.env.SMALL_DATASET || '/Users/billreed/eclairjs_dev/eclairjs-nashorn/examples/data/mllib/ml-latest-small';
-var pathToCompleteDataset = process.env.LARGE_DATASET || '/Users/billreed/eclairjs_dev/eclairjs-nashorn/examples/data/mllib/ml-latest-small';
-//var pathToSmallDataset = '/Users/jbarbetta/Work/gitProjects/eclairjs/eclairjs-node/examples/movie_data/ml-latest-small';
-//var pathToCompleteDataset = '/Users/jbarbetta/Work/gitProjects/eclairjs/eclairjs-node/examples/movie_data/ml-latest';
-//var pathToCompleteDataset = '/Users/jbarbetta/Work/gitProjects/eclairjs/eclairjs-node/examples/movie_data/ml-latest-small';
+var pathToSmallDataset = process.env.SMALL_DATASET;
+var pathToCompleteDataset = process.env.LARGE_DATASET;
 
 var start = new Date().getTime();
 

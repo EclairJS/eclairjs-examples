@@ -8,9 +8,9 @@ var sparkConf = new spark.SparkConf(false)
 var sc = new spark.SparkContext(sparkConf);
 var sqlContext = new spark.sql.SQLContext(sc);
 
-var housing_a_file_path = process.env.HOUSING_A_DATASET || '/Users/billreed/Downloads/csv_hus/ss13husa.csv';
-var housing_b_file_path = process.env.HOUSING_B_DATASET || '/Users/billreed/Downloads/csv_hus/ss13husb.csv';
-var states_file_path = process.env.STATES_DATASET || '/Users/billreed/Downloads/spark-r-notebooks-master/applications/exploring-maps/states.csv';
+var housing_a_file_path = process.env.HOUSING_DIR + '/ss13husa.csv';
+var housing_b_file_path = process.env.HOUSING_DIR + '/ss13husb.csv';
+var states_file_path = process.env.HOUSING_DIR + '/states.csv';
 var housing_avgs_by_state_results;
 
 var housing_a_file_raw_data = sc.textFile(housing_a_file_path);

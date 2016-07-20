@@ -18,7 +18,7 @@ The examples use large datasets that need to be download and accessible by your 
 * Download census data
  ** [ss13husa.csv](http://www2.census.gov/acs2013_1yr/pums/csv_pus.zip) and unzip in a location that is accessible by Spark.
  ** [ss13husb.csv](http://www2.census.gov/acs2013_1yr/pums/csv_hus.zip) and unzip in a location that is accessible by Spark.
- ** [states.csv](https://raw.githubusercontent.com/EclairJS/eclairjs-nashorn/master/examples/data/states.csv)
+ ** [states.csv](https://raw.githubusercontent.com/jadianes/spark-r-notebooks/master/applications/exploring-maps/states.csv)
 
 
 ## Usage
@@ -33,3 +33,9 @@ node app.js
 ```
 
 Open a browser to http://localhost:3000
+
+## Deploying to BlueMix
+Update manifest.yml with your VCAP environment variables for your BlueMix NodeJS application.
+````
+cf push
+````

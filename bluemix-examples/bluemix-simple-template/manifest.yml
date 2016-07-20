@@ -1,0 +1,10 @@
+applications:
+- path: .
+  memory: 1024M
+  instances: 1
+  domain: mybluemix.net
+  name: Bluemix EclairJS Node Example
+  host: eclairjssample
+  disk_quota: 1024M
+  env:
+    JUPYTER_HOST: 

@@ -1,0 +1,13 @@
+{
+  "name": "bluemix-simple-template",
+  "version": "0.0.1",
+  "author": "EclairJS <info@eclairjs.org>",
+  "scripts": {
+    "start": "node --harmony index.js"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "express": "~4.12.0",
+    "eclairjs": "*"
+  }
+}

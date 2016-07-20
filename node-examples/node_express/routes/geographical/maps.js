@@ -21,7 +21,7 @@ housing_avgs_by_state_df.collect().then(function(results){
 	 console.log('results from saved DF housing_avgs_by_state_df_json_file_path loaded.');
 },function(err) {
 	/*
-	 * THe JSON for the DF does not exsist, so lets build it.
+	 * THe JSON for the DF does not exist, so lets build it.
 	 */
 	var housing_a_file_raw_data = sc.textFile(housing_a_file_path);
 	housing_a_file_raw_data.take(1).then(function(val){

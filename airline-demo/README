@@ -1,0 +1,20 @@
+Prereqs:
+    - Docker (see https://docs.docker.com/engine/installation/mac/)
+
+Setup:
+    - `export JUPYTER_HOST=192.168.99.100`
+    - `cd tmpnp/examples/airline`
+    - run `npm install`
+
+Running the demo:    
+    - Run `docker-compose up -d`
+        - docker container provides:
+            - jupyter gateway
+            - kafka pump for streaming data 
+    - Run `npm start`
+    - Point browser to localhost:3000
+
+To restart the demo/docker container:
+    - Run `docker-compose down`
+    - Run `docker-compose up -d`
+

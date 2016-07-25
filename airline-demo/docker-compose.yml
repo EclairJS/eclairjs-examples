@@ -1,0 +1,29 @@
+version: "2"
+
+services:
+  kafka:
+    image: antlypls/kafka:0.9.0.0
+    environment:
+      - KAFKA=localhost:9092
+      - ZOOKEEPER=localhost:2181
+    expose:
+      - "2181"
+      - "9092"
+
+  eclair:
+    image: eclairjs/minimal-gateway
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./data/2008bd.json:/staticdata
+    depends_on:
+      - kafka
+
+  pump:
+    image: java:8
+    volumes:
+      - ../kafka-pump:/pump
+      - ./data/streaming:/data
+    command: "/pump/bin/dt-pump --broker-list=kafka:9092 --data-dir=/data --topic=airline --data-rate=100 --throttle=1000 --verbose"
+    depends_on:
+      - kafka

@@ -3,3 +3,5 @@
 target
 dependency-reduced-pom.xml
 .DS_Store
+node_modules
+npm-debug.log

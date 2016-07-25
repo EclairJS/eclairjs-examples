@@ -4,6 +4,7 @@
 
 var port = location.port ? location.port : '80';
 var socket = new WebSocket("ws://"+location.hostname+":"+port);
+var thumbnails_off = true;
 
 socket.onopen = function() {
     // heart beat, stops bluemix from closing connections
@@ -17,7 +18,7 @@ socket.onmessage = function(e) {
         var data = JSON.parse(e.data);
         if (data.type === 'top25Update') {
             //console.log("Got top25 data.data: ",data.data);
-            createTop25Widget(data.data, data.original25);
+            createTop25List(data.data, data.original25);
         }
     }
 };
@@ -39,8 +40,9 @@ function init() {
 function restService (type, req, callback) {
     /* the AJAX request... */
     var oAjaxReq = new XMLHttpRequest();
-    var url = "/"+req;
-   // oAjaxReq.submittedData = oData;
+    //var url = "/"+req;
+    var url = req.indexOf("http") >= 0 ? req : "/"+req;
+    // oAjaxReq.submittedData = oData;
     oAjaxReq.onload = function(e) {
     	var r = JSON.parse(e.target.response);
     	callback(r);
@@ -59,14 +61,34 @@ function movieSearch(e) {
 		var movieSearchResults = document.getElementById("movieSearchResults");
 		if (Array.isArray(results)) {
 			results.forEach(function(movie) {
-				var div = document.createElement("div");
-				div.id = movie.id;
-				movieSearchResults.appendChild(div);
-				var title = document.createElement("div");
-				// Seems our dataset has weird leading double quotes - as per DF cleanup before display
-				title.textContent = movie.title.replace(/^\"/, "");
-				div.appendChild(title);
-				div.appendChild(createRatingWidget(movie));
+                var div = document.createElement("div");
+                div.id = movie.id;
+                div.classList.add("tn-wrapper");
+                movieSearchResults.appendChild(div);
+                var thumbnail = document.createElement("div");
+                thumbnail.classList.add("tn-thumbnail");
+                if (thumbnails_off) {
+                    thumbnail.classList.add("tn-off");
+                }
+                var img = document.createElement("img");
+                img.id = "tn_"+movie.id;
+                getThumbnail(e.target.value, movie, function(result){
+                    console.log("Got tn for: ",result);
+                    console.log("tn: ",result.tn);
+                    var img = document.getElementById("tn_"+result.id);
+                    img.src = result.tn;
+                });
+                thumbnail.appendChild(img);
+                div.appendChild(thumbnail);
+                var title = document.createElement("div");
+                title.classList.add("tn-main");
+                // Seems our dataset has weird leading double quotes - as per DF cleanup before display
+                //title.textContent = movie.title.replace(/^\"/, "");
+                var text = document.createTextNode(movie.title.replace(/^\"/, ""));
+                title.appendChild(text);
+                title.appendChild(createRatingWidget(movie));
+                div.appendChild(title);
+                //div.appendChild(createRatingWidget(movie));
 			});
 		} else {
 			var div = document.createElement("div");
@@ -125,7 +147,7 @@ function createRatingWidget(movie){
  
 }
 
-function createTop25Widget(top25, original25) {
+function createTop25List(top25, original25) {
     top25 = top25 && top25.length ? top25 : [];
     var top25Div = document.getElementById("top25");
     // replace any previous results with new ones
@@ -150,3 +172,18 @@ function createTop25Widget(top25, original25) {
         }
     });
 }
+
+function getThumbnail(originalSearch, movie, cb) {
+    console.log("Get tn for: ",movie);
+    var title = movie.title.replace(/^\"/, "");
+    // Fixme: Year will be in the form (1977) so we have to take off (). Maybe a better regex?
+    var tmp = title.match(/\s\((\d{4})\)/g);
+    // We really need the year for this to work well.  Not all movies have the year unfortunately (or we need the imdbID)
+    var year = tmp && tmp.length > 0 ? tmp[0].match(/(\d{4})/g) : "";
+    restService('get', 'http:\/\/www.omdbapi.com\/?t='+originalSearch+'&y='+year+'&plot=short&r=json', function(results){
+        console.log(results.Poster || "");
+        // Need a default placeholder to return if no thumbnail found.
+        cb({id: movie.id, tn: results.Poster || ""});
+    });
+};
+

@@ -7,44 +7,6 @@ a {
   color: #00B7FF;
 }
  
-.wrapper {
-    display: -webkit-box;
-    display: -moz-box;
-    display: -ms-flexbox;
-    display: -webkit-flex;
-    display: flex;  
-  
-    -webkit-flex-flow: row wrap;
-    flex-flow: row wrap;
-  
-    font-weight: bold;
-    text-align: center;
-}
-
-.wrapper > * {
-    padding: 10px;
-    flex: 1 100%;
-}
-
-.main {
-    padding-left: 0px;
-}
-
-.main, .aside {
-    text-align: left;
-}
-
-@media all and (min-width: 600px) {
-    .aside { flex: 1 auto; }
-}
-
-@media all and (min-width: 800px) {
-    .main    { flex: 3 auto; }
-    /*.main    { flex: 3 0px; }*/
-    .main    { order: 1; }
-    .aside { order: 2; }
-}
-
 #movieSearchResults, 
 #top25Results {
     padding-top: 20px;
@@ -117,3 +79,77 @@ a {
     -moz-pointer-events: none;
     pointer-events: none;
 }
+
+/** The following is for repsonsive design **/
+.wrapper, .tn-wrapper {
+    display: -webkit-box;
+    display: -moz-box;
+    display: -ms-flexbox;
+    display: -webkit-flex;
+    display: flex;
+
+    -webkit-flex-flow: row wrap;
+    flex-flow: row wrap;
+
+    font-weight: bold;
+    text-align: center;
+}
+
+.wrapper > * {
+    padding: 10px;
+    flex: 1 100%;
+}
+
+.tn-wrapper > * {
+    padding: 2px;
+    flex: 1 50%;
+}
+
+.main, .tn-main {
+    padding-left: 0px;
+}
+
+.main, .aside, .tn-main, .tn-thumbnail {
+    text-align: left;
+}
+
+.tn-thumbnail {
+    padding: 2px;
+}
+
+.tn-thumbnail > img {
+    height: 50px;
+    width: 50px;
+}
+
+.tn-thumbnail.tn-off {
+    display: none;
+}
+
+/** Note: Media defines should be at EO. Above defines defaults when media size has not been specified. **/
+@media all and (min-width: 100px) {
+    .tn-thumbnail > img { width: 250px; height: 275px; }
+    .tn-thumbnail { max-width: 100%; }
+    .tn-thumbnail { text-align: center; }
+    .tn-thumbnail.tn-off { display: none; }
+}
+
+@media all and (min-width: 600px) {
+    .aside { flex: 1 auto; }
+    .tn-thumbnail { flex: 1 auto; }
+    .tn-thumbnail > img { width: 50px; height: 50px; }
+    .tn-thumbnail { max-width: 54px; }
+    .tn-thumbnail.tn-off { display: none; }
+}
+
+@media all and (min-width: 800px) {
+    .main { flex: 0 1 auto; }
+    .main { order: 1; }
+    .aside { order: 2; }
+    .tn-main { flex: 3 auto; }
+    .tn-thumbnail { order: 1; }
+    .tn-main { order: 2; }
+    .tn-thumbnail { max-width: 54px; }
+    .tn-thumbnail.tn-off { display: none; }
+}
+

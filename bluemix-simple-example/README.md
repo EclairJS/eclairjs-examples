@@ -4,7 +4,7 @@ Provides a simple example of an EclairJS Node application running in Bluemix.
 
 ## Installation
 
-1) You will need to setup a running instance of [Apache Spark 1.6 and EclairJS Nashorn](https://github.com/EclairJS/eclairjs-node/wiki/Build-and-Package).
+1) You will need to setup a running instance of [Apache Spark 1.6 and EclairJS Nashorn](https://github.com/EclairJS/eclairjs-node/wiki/Build-and-Package) (or use our [Docker Cotainer](https://github.com/EclairJS/eclairjs-node/wiki/Using-the-Docker-Container)).
 
 2) Edit `manifest.yml` and set `JUPYTER_HOST` to be the IP address of where EclairJS Nashorn is installed.
 

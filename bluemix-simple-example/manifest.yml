@@ -7,4 +7,4 @@ applications:
   host: eclairjssample
   disk_quota: 1024M
   env:
-    JUPYTER_HOST: 
+    JUPYTER_HOST: YOUR.IP.ADDRESS

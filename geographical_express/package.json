@@ -1,0 +1,15 @@
+{
+  "name": "eclairjs_node_express_examples",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "start": "node --harmony app.js"
+  },
+  "dependencies": {
+    "express": "3.2.6",
+    /*"eclairjs": "file:/Users/billreed/eclairjs_dev/eclairjs-node",*/
+    "eclairjs": "git+https://github.com/EclairJS/eclairjs-node.git",
+    "jade": "*",
+    "ws": "~1.0"
+  }
+}

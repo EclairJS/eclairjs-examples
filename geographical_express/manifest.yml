@@ -1,0 +1,12 @@
+applications:
+- path: .
+  memory: 256M
+  instances: 1
+  domain: mybluemix.net
+  name: EclairJS Geographical Daata Express Examples
+  host: eclairjs_eeographical_express_examples
+  disk_quota: 1024M
+  env:
+    JUPYTER_HOST: 169.54.140.107
+    HOUSING_DIR: hdfs://10.122.193.195:8020/data/csv_hus
+    SPARK_MASTER: spark://10.122.193.195:7077

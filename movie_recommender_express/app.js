@@ -7,7 +7,6 @@ var express = require('express')
   , routes = require('./routes')
   , user = require('./routes/user')
   , movie_recommender = require('./routes/movie_recommender/movie_recommender')
-  , geographical = require('./routes/geographical/maps')
   , http = require('http')
   , path = require('path')
   , WebSocketServer = require('ws').Server;
@@ -35,11 +34,6 @@ if ('development' == app.get('env')) {
 
 app.get('/', routes.index);
 app.get('/users', user.users);
-app.get('/word_count', user.word_count);
-// REST services for geographical
-app.get('/geographical/rest/housingAvgs', geographical.housingAvgs);
-// web UI for geographical
-app.get('/geographical/maps', geographical.maps);
 //REST services for movie_recommender
 app.get('/movie_recommender/rest/top25', movie_recommender.top25);
 app.get('/movie_recommender/rest/predictedRatingForMovie', movie_recommender.predictedRatingForMovie);

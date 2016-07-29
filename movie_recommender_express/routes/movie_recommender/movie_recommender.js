@@ -1,5 +1,19 @@
 var spark = require('eclairjs');
-//var spark = require('/Users/jbarbetta/Work/gitProjects/eclairjs/eclairjs-node/lib/index.js');
+
+/*
+ * Globals
+ */
+
+var pathToSmallDataset = process.env.SMALL_DATASET;
+var pathToCompleteDataset = process.env.LARGE_DATASET;
+var complete_ratings_data_path = process.env.SAVED_DATA +'/complete_ratings_data';
+var predictionModleValuesDFPath = process.env.SAVED_DATA + '/predictionModleValuesDF';
+var complete_movies_titlesDFPath = process.env.SAVED_DATA + '/complete_movies_titlesDF';
+var complete_movies_data_path = process.env.SAVED_DATA + '/complete_movies_data';
+var complete_movies_titles_path = process.env.SAVED_DATA + '/complete_movies_titles';
+var movie_rating_counts_RDD_path = process.env.SAVED_DATA + '/movie_rating_counts_RDD';
+var new_user_recommendations_rating_title_and_count_RDD2_filtered_path = process.env.SAVED_DATA + '/new_user_recommendations_rating_title_and_count_RDD2_filtered';
+var new_ratings_model_path = process.env.SAVED_DATA + '/new_ratings_model';
 
 var top25Recommendation;
 var rebuildingTop25 = 'complete';
@@ -16,6 +30,11 @@ var complete_movies_data;
 var complete_movies_titles;
 var movie_rating_counts_RDD;
 var new_user_recommendations_rating_title_and_count_RDD2_filtered;
+var predictionModleValuesDF;
+
+/*
+ * a starter group of movies so we have something for the first pridtions
+ */
 var userMovieRatingHash = {
 		// movie id is key:
 		"260": 9, // Star Wars (1977)
@@ -29,30 +48,11 @@ var userMovieRatingHash = {
         "858": 10, // Godfather, The (1972)
         "50": 8 // Usual Suspects, The (1995)
 };
-var predictionModleValuesDF;
-var pathToSmallDataset = process.env.SMALL_DATASET;
-var pathToCompleteDataset = process.env.LARGE_DATASET;
-var complete_ratings_data_path = process.env.SAVED_DATA +'/complete_ratings_data';
-var predictionModleValuesDFPath = process.env.SAVED_DATA + '/predictionModleValuesDF';
-var complete_movies_titlesDFPath = process.env.SAVED_DATA + '/complete_movies_titlesDF';
-var complete_movies_data_path = process.env.SAVED_DATA + '/complete_movies_data';
-var complete_movies_titles_path = process.env.SAVED_DATA + '/complete_movies_titles';
-var movie_rating_counts_RDD_path = process.env.SAVED_DATA + '/movie_rating_counts_RDD';
-var new_user_recommendations_rating_title_and_count_RDD2_filtered_path = process.env.SAVED_DATA + '/new_user_recommendations_rating_title_and_count_RDD2_filtered';
-var new_ratings_model_path = process.env.SAVED_DATA + '/new_ratings_model';
 
-
-
-var sparkConf = new spark.SparkConf(false)
-	.set("spark.executor.memory", "10g")
-	.set("spark.driver.memory", "6g")
-	.setMaster(process.env.SPARK_MASTER || "local[*]")
-	.setAppName("movie_recommender");
-var sc = new spark.SparkContext(sparkConf);
-var sqlContext = new spark.sql.SQLContext(sc);
-
-var start = new Date().getTime();
-
+/**
+ * Handle errors
+ * @param e
+ */
 function failureExit(e) {
 	res.send(e);
     sc.stop().then(function() {
@@ -60,7 +60,15 @@ function failureExit(e) {
 	  });
 }
 
+/**
+ * Builds the RDDs and model needed to recommend movies, this can take a while as the 
+ * data set is quite large. We do save the computed RDDs and models so on futures server start ups
+ * they can be reused.
+ */
 function movie_recommender_init() {
+	/*
+	 * Load the small movielens data sets we will use them to train the model.
+	 */
 	var small_ratings_raw_data = sc.textFile(pathToSmallDataset + '/ratings.csv');
 	small_ratings_raw_data.take(1).then(function(val) {
 		  //console.log("Success:", val);
@@ -88,37 +96,31 @@ function movie_recommender_init() {
 			            var fields = line.split(",");
 			            return new Tuple2(parseInt(fields[0]), fields[1]);
 			        }, [spark.Tuple2]).cache();
-
 			    var small_movies_titles = small_movies_data
 			        .mapToPair(function (tuple2, Tuple2) {
 			            return new Tuple2(tuple2._1(), tuple2._2());
 			        }, [spark.Tuple2]);
-			    
 			    small_movies_titles.take(3).then(function(result){
 			    	  console.log("small_movies_titles :", result);
-			    	  
 			    	  	seed = 0;
+			    	  	/*
+			    	  	 * split the data set for training
+			    	  	 */
 			    	    small_ratings_data.randomSplit([0.6, 0.2, 0.2], seed).then(function(split){
 			    	    	var training_RDD = split[0];
 				    	    var validation_RDD = split[1];
-				    	    //var test_RDD = split[2];
-
 				    	    var validation_for_predict_RDD = validation_RDD.map(function (rating, Tuple2) {
 				    	        return new Tuple2(rating.user(), rating.product());
-
 				    	    }, [spark.Tuple2]);
-
 				    	    seed = 5;
-				    	    //var iterations = 10;
-				    	    //var regularization_parameter = 0.1
 				    	    var ranks = [4, 8, 12];
 				    	    var errors = [0, 0, 0];
 				    	    var err = 0;
-
 				    	    var min_error = Number.POSITIVE_INFINITY;
-				    	    //var best_rank = -1;
-				    	    //var blocks = -1;
 				    	    var promises = [];
+				    	    /*
+				    	     * determine the best rank to use.
+				    	     */
 				    	    ranks.forEach(function (rank) {
 				    	        var model = spark.mllib.recommendation.ALS.train(training_RDD, rank, iterations, regularization_parameter, blocks, seed);
 				    	        var predictions = model.predict(validation_for_predict_RDD)
@@ -126,13 +128,11 @@ function movie_recommender_init() {
 				    	                    return new Tuple2(new Tuple2(rating.user(), rating.product()), rating.rating());
 				    	                }, [spark.Tuple2]
 				    	            );
-
 				    	        var rates_and_preds = validation_RDD
 				    	            .mapToPair(function (rating, Tuple2) {
 				    	                return new Tuple2(new Tuple2(rating.user(), rating.product()), rating.rating());
 				    	            }, [spark.Tuple2])
 				    	            .join(predictions);
-
 				    	        var t = rates_and_preds
 				    	            .mapToFloat(function (tuple) {
 				    	                return Math.pow(tuple._2()._1() - tuple._2()._2(), 2);
@@ -152,10 +152,9 @@ function movie_recommender_init() {
 				    	    	}
 				    	    	console.log("The best model was trained with rank " + best_rank);
 				    	    	
-				    	    	 /*
-				    	        In order to build our recommender model, we will use the complete dataset.
-
-				    	        */
+				    	    	/*
+				    	         * In order to build our recommender model, we will use the complete dataset.
+				    	         */
 				    	       var complete_ratings_raw_data = sc.textFile(pathToCompleteDataset + '/ratings.csv');
 				    	       complete_ratings_raw_data.take(1).then(function(result){
 				    	    	   var complete_ratings_raw_data_header = result[0];
@@ -171,11 +170,9 @@ function movie_recommender_init() {
 					    	               return new Rating(userId, movieId, rating);
 					    	           }, [spark.mllib.recommendation.Rating])
 					    	           .cache();
-
 					    	       complete_ratings_data.randomSplit([0.7, 0.3], 0).then(function(splits2){
 					    	    	   var training_RDD = splits2[0];
-						    	       var test_RDD = splits2[1];
-			
+						    	       var test_RDD = splits2[1];		
 						    	       var complete_model = spark.mllib.recommendation.ALS.train(training_RDD, best_rank, iterations, regularization_parameter, blocks, seed);
 						    	       /*
 						    	       Now we test on our testing set.
@@ -184,19 +181,15 @@ function movie_recommender_init() {
 						    	          .map(function (rating, Tuple2) {
 						    	              return new Tuple2(rating.user(), rating.product());
 						    	          }, [spark.Tuple2]);
-
 						    	      var predictions = complete_model.predict(test_for_predict_RDD)
 						    	          .mapToPair(function (rating, Tuple2) {
 						    	              return new Tuple2(new Tuple2(rating.user(), rating.product()), rating.rating());
 						    	          }, [spark.Tuple2]);
-
 						    	      var rates_and_preds = test_RDD
 						    	          .mapToPair(function (rating, Tuple2) {
 						    	              return new Tuple2(new Tuple2(rating.user(), rating.product()), rating.rating());
 						    	          }, [spark.Tuple2])
 						    	          .join(predictions);
-
-
 						    	      var t = rates_and_preds
 						    	          .mapToFloat(function (x) {
 						    	              return Math.pow(x._2()._1() - x._2()._2(), 2);
@@ -223,14 +216,12 @@ function movie_recommender_init() {
 							    	             var x = parseInt(fields[0]);
 							    	             return new Tuple2(x, fields[1]);
 							    	         }, [spark.Tuple2]).cache();
-
 								    	     complete_movies_titles = complete_movies_data
 								    	         .mapToPair(function (tuple2, Tuple2) {
 								    	             return new Tuple2(tuple2._1(), tuple2._2());
 								    	         }, [spark.Tuple2]);
-								    	     
-								    	     
-								    	   //Generate the schema
+ 
+								    	   // Generate the schema movie titles Dataframe
 								    	     var DataTypes = spark.sql.types.DataTypes;
 
 								    	     var fields = [];
@@ -242,7 +233,7 @@ function movie_recommender_init() {
 							    	             return RowFactory.create([tuple2._1(), tuple2._2()]);
 							    	         }, [spark.sql.RowFactory]);
 
-								    	     //Apply the schema to the RDD.
+								    	     //Apply the schema to the RDD and create Dataframe
 								    	     complete_movies_titlesDF = sqlContext.createDataFrame(rowRDD, schema);
 								    	     
 								    	     /*
@@ -283,7 +274,7 @@ function movie_recommender_init() {
 									   	    complete_movies_titles.saveAsObjectFile(complete_movies_titles_path, true);
 									   	    movie_rating_counts_RDD.saveAsObjectFile(movie_rating_counts_RDD_path, true);
 									   	    /*
-									   	     * save the valuse used by the ALS prediction model
+									   	     * save the valuse used by the ALS prediction model in a Dataframe
 									   	     */
 									   	     var DataTypes = spark.sql.types.DataTypes;
 									
@@ -296,7 +287,6 @@ function movie_recommender_init() {
 									   	     
 									   	     var schema = DataTypes.createStructType(fields);
 									   	     var row = spark.sql.RowFactory.create([ best_rank, iterations, regularization_parameter, blocks, seed]);
-									   	     //Apply the schema to the RDD.
 									   	     predictionModleValuesDF = sqlContext.createDataFrame([[best_rank, iterations, regularization_parameter, blocks, seed]], schema);
 									   	     predictionModleValuesDF.take(1).then(function(result){
 									   	    	 predictionModleValuesDF.write().mode('overwrite').json(predictionModleValuesDFPath);
@@ -329,8 +319,8 @@ function movie_recommender_init() {
 
 
 /**
- * 
  * Updates the top25 movies for the user, this runs "in the background" after the user updates his ratings
+ * @param {function} cb callback
  */
 function rateMoviesForUser(cb) {
 		rebuildTop25 = 'inProgress';
@@ -430,7 +420,11 @@ function rateMoviesForUser(cb) {
 	    
 
 };
-
+/**
+ * Returns the top 25 rated movies from the RDD by passing them as a argument to the callback function
+ * @param rdd
+ * @param {function<array>} callback
+ */
 function getTop25FromRDD(rdd, callback){
 	 /*
     list top 25
@@ -454,6 +448,12 @@ function getTop25FromRDD(rdd, callback){
   failureExit);
 }
 
+/**
+ * Pridicts the rating for movies
+ * @param {array} movies
+ * @param {function<array>} callback
+ * @param {function} errCallback
+ */
 function predictRating(movies, callback, errCallback) {
 	 /*
     Another useful usecase is getting the predicted rating for a particular movie for a given user.
@@ -473,7 +473,9 @@ function predictRating(movies, callback, errCallback) {
 }
 
 /**
- * REST Service returns JSON
+ * REST Service returns JSON, send top 25 movies as JSON
+ * @parma {httpRequest} req
+ * @param {httpResponse} res
  */
 exports.top25 = function(req, res){
 	if (top25Recommendation) {
@@ -484,7 +486,9 @@ exports.top25 = function(req, res){
 };
 
 /**
- * REST Service returns JSON
+ * REST Service returns JSON, pridect the users rating for a movie
+ * @parma {httpRequest} req
+ * @param {httpResponse} res
  */
 exports.predictedRatingForMovie = function(req, res){
 	if (top25Recommendation) {
@@ -505,6 +509,8 @@ exports.predictedRatingForMovie = function(req, res){
 /**
  * REST Service returns JSON
  * Returns movies that have the words in their title
+ * @parma {httpRequest} req
+ * @param {httpResponse} res
  */
 exports.movieID = function(req, res){
 	if (top25Recommendation) {
@@ -546,6 +552,8 @@ exports.movieID = function(req, res){
 /**
  * REST Service returns JSON
  * Returns for for the given id
+ * @parma {httpRequest} req
+ * @param {httpResponse} res
  */
 exports.movieTitle = function(req, res){
 	if (top25Recommendation) {
@@ -565,6 +573,8 @@ exports.movieTitle = function(req, res){
 /**
  * REST Service returns JSON
  * Updates the ratings movie ratings for this user and then re-run the movie recommender predictions
+ * @parma {httpRequest} req
+ * @param {httpResponse} res
  */
 exports.rateMovie = function(req, res){
 	if (top25Recommendation) {
@@ -586,6 +596,26 @@ exports.rateMovie = function(req, res){
 	}
 };
 
+/**
+ * REST Service returns JSON
+ * Rebuild the models and datasets
+ * @parma {httpRequest} req
+ * @param {httpResponse} res
+ */
+exports.rebuild = function(req, res){
+	if (top25Recommendation) {
+		rebuildingTop25 = 'needed';
+		movie_recommender_init();	
+	}
+	res.send( JSON.stringify({"message": "Still building modles, try again later."}));
+};
+
+/**
+ * Triggets the update of top 25 movies predictions. If we have a top 25 update in progess 
+ * we don'e want to start another.
+ * @param updatedTop25
+ * @param fromSearch
+ */
 function handleTop25Update(updatedTop25, fromSearch){
     //console.log("handleTop25Update: ",JSON.stringify(updatedTop25));
     var top25 = [];
@@ -612,16 +642,36 @@ function handleTop25Update(updatedTop25, fromSearch){
 
 /**
  * Start sending data updates to node server so it can farm out to clients attatched to websocket
+ * @param {function} cb
  */
 exports.startUpdates = function(cb) {
     dataCallback = cb;
 };
 
+/**
+ * Display movie recommender search
+ * @param {httpRequest} req
+ * @param {httpResponce} res
+ */
 exports.rate = function(req, res){
   res.render('movie_recommender/rate', { title: 'Movie Recommender' });
 };
 
+/*
+ * Start a Spark session.
+ */
 
+var sparkConf = new spark.SparkConf(false)
+.set("spark.executor.memory", "10g")
+.set("spark.driver.memory", "6g")
+.setMaster(process.env.SPARK_MASTER || "local[*]")
+.setAppName("movie_recommender");
+var sc = new spark.SparkContext(sparkConf);
+var sqlContext = new spark.sql.SQLContext(sc);
+
+/* 
+ * First try to load saved model and RDD's that have been computed in the passed
+ */
 complete_ratings_data = sc.objectFile(complete_ratings_data_path); 
 predictionModleValuesDF = sqlContext.read().json(predictionModleValuesDFPath);
 complete_movies_titlesDF = sqlContext.read().json(complete_movies_titlesDFPath);
@@ -630,7 +680,9 @@ complete_movies_titles = spark.rdd.PairRDD.fromRDD(sc.objectFile(complete_movies
 movie_rating_counts_RDD = spark.rdd.PairRDD.fromRDD(sc.objectFile(movie_rating_counts_RDD_path));
 new_user_recommendations_rating_title_and_count_RDD2_filtered = sc.objectFile(new_user_recommendations_rating_title_and_count_RDD2_filtered_path);
 
-
+/*
+ * We need to do a take, to actually determine if the RDD's and models where loaded.
+ */
 Promise.all([
              complete_ratings_data.take(1), 
              predictionModleValuesDF.take(1), 
@@ -640,6 +692,9 @@ Promise.all([
              movie_rating_counts_RDD.take(1),
              new_user_recommendations_rating_title_and_count_RDD2_filtered.take(1)
              ]).then(function(resluts){
+            	 /*
+            	  * The saved RDDs and model were loaded, so we can reusse them
+            	  */
 	console.log(' All saved data loaded');
 	var row = resluts[1][0];
 	best_rank = row.get(row.fieldIndex('best_rank'));
@@ -664,6 +719,9 @@ Promise.all([
 	})
 	
 }, function(err){
+	/*
+	 * RDDs and models do not exist so we need to build them
+	 */
 	console.log('No saved data rebuilding models and data, this could take a while...');
 	movie_recommender_init();
 });

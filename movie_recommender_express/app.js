@@ -39,7 +39,9 @@ app.get('/movie_recommender/rest/top25', movie_recommender.top25);
 app.get('/movie_recommender/rest/predictedRatingForMovie', movie_recommender.predictedRatingForMovie);
 app.get('/movie_recommender/rest/movieID', movie_recommender.movieID);
 app.get('/movie_recommender/rest/movieTitle', movie_recommender.movieTitle);
+app.get('/movie_recommender/rest/rebuild', movie_recommender.rebuild);
 app.post('/movie_recommender/rest/rateMovie', movie_recommender.rateMovie);
+
 // web UI for movie_recommender
 app.get('/movie_recommender/rate', movie_recommender.rate);
 

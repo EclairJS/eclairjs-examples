@@ -1,4 +1,19 @@
 var spark = require('eclairjs');
+
+/*
+ * Globals
+ */
+
+var housing_a_file_path = process.env.HOUSING_DIR + '/ss13husa.csv';
+var housing_b_file_path = process.env.HOUSING_DIR + '/ss13husb.csv';
+var states_file_path = process.env.HOUSING_DIR + '/states.csv';
+var housing_avgs_by_state_df_json_file_path = process.env.HOUSING_DIR + '/housing_avgs_by_state_df_json';
+var housing_avgs_by_state_results;
+
+/*
+ * Start a Spark session
+ */
+
 var sparkConf = new spark.SparkConf(false)
 .set("spark.executor.memory", "10g")
 .set("spark.driver.memory", "10g")
@@ -8,15 +23,13 @@ var sparkConf = new spark.SparkConf(false)
 var sc = new spark.SparkContext(sparkConf);
 var sqlContext = new spark.sql.SQLContext(sc);
 
-var housing_a_file_path = process.env.HOUSING_DIR + '/ss13husa.csv';
-var housing_b_file_path = process.env.HOUSING_DIR + '/ss13husb.csv';
-var states_file_path = process.env.HOUSING_DIR + '/states.csv';
-var housing_avgs_by_state_df_json_file_path = process.env.HOUSING_DIR + '/housing_avgs_by_state_df_json';
-var housing_avgs_by_state_results;
 
+/**
+ * Builds the Dataframe that contains the housing averages
+ */
 function rebuild_housing_avgs_by_state_results() {
 	/*
-	 * THe JSON for the DF does not exist, so lets build it.
+	 * load housing data.
 	 */
 	var housing_a_file_raw_data = sc.textFile(housing_a_file_path);
 	housing_a_file_raw_data.take(1).then(function(val){
@@ -31,7 +44,6 @@ function rebuild_housing_avgs_by_state_results() {
 		    var tokens = line.split(",");
 		    var values = [];
 		    for (var i = 0; i < tokens.length; i++) {
-		    	//print(tokens[i]);
 		        if (i > 0) {
 		            // RT (col 0 or A) is the only string in the dataset
 		            values.push(parseInt(tokens[i]) | 0);
@@ -39,14 +51,11 @@ function rebuild_housing_avgs_by_state_results() {
 		            values.push(tokens[i]);
 		        }
 		    };
-		    //print(JSON.stringify(values));
-		    var x =  RowFactory.create(values);
-		    return x;
+		    return RowFactory.create(values);
 		}, [spark.sql.RowFactory] )
 		.cache();
 		housing_a_file_data.take(10).then(function(values){
 			console.log("done " + JSON.stringify(values));
-			
 		});
 		
 		//Generate the schema
@@ -66,7 +75,6 @@ function rebuild_housing_avgs_by_state_results() {
 		var housing_a_df = sqlContext.createDataFrame(housing_a_file_data, schema);
 		
 		var housing_b_file_raw_data = sc.textFile(housing_b_file_path);
-		//var housing_b_file_data_header = housing_b_file_raw_data.take(1)[0]; // should be the same header a a
 		var housing_b_file_data = housing_b_file_raw_data
 		    .filter(function (line, housing_a_file_data_header) {
 		        // filters out the header
@@ -174,16 +182,28 @@ function rebuild_housing_avgs_by_state_results() {
 	});
 }
 
+/*
+ * Start by seeing if we have a saved dataframe we can reuse, by attempting to load and use it.
+ */
 var housing_avgs_by_state_df = sqlContext.read().json(housing_avgs_by_state_df_json_file_path);
-
 housing_avgs_by_state_df.collect().then(function(results){
+	/*
+	 * We did have a saved dataframe, so lets reuse it.
+	 */
 	 housing_avgs_by_state_results = results;
 	 console.log('results from saved DF housing_avgs_by_state_df_json_file_path loaded.');
 },function(err) {
+	/*
+	 * No saved dataframe so we have to build it, this will take a little time.
+	 */
 	rebuild_housing_avgs_by_state_results();
 });
 
-
+/**
+ * redirects the user to the maps
+ * @param {httpRequest} req
+ * @param {httpResponce} res
+ */
 exports.maps = function(req, res){
 	res.render('geographical/maps', { title: 'Maps' });
 };
@@ -192,6 +212,8 @@ exports.maps = function(req, res){
 /**
  * REST Service returns JSON
  * Updates the ratings movie ratings for this user and then re-run the movie recommender predictions
+ * @param {httpRequest} req
+ * @param {httpResponce} res
  */
 exports.housingAvgs = function(req, res){
 	if (housing_avgs_by_state_results) {
@@ -200,7 +222,11 @@ exports.housingAvgs = function(req, res){
 		res.send( JSON.stringify({"message": "Still building modles, try again later."}));
 	}
 };
-
+/**
+* REST Service returns JSON, rebuilds the dataframe.
+* @param {httpRequest} req
+* @param {httpResponce} res
+*/
 exports.rebuildHousingAvgs = function(req, res){
 	if (housing_avgs_by_state_results) {
 		rebuild_housing_avgs_by_state_results();

@@ -17,10 +17,6 @@
 // use express for a webserver
 var express = require('express');
 
-// eclairjs
-var spark = require('eclairjs');
-
-// We can run locally or in Bluemix
 var port = process.env.VCAP_APP_PORT || 5000;
 var host = process.env.VCAP_APP_HOST || 'localhost';
 
@@ -31,17 +27,25 @@ app.use(express.static('public'));
 var server = app.listen(port, host, function () {
 });
 
+// eclairjs
+var eclairjs = require('eclairjs');
+var sc;
+
 // our main entry point
 app.get('/do', function (req, res) {
-  var sc = new spark.SparkContext("local[*]", "Simple Spark Program");
+  sc = new eclairjs.SparkContext("local[*]", "Simple Spark Program");
 
   var rdd = sc.parallelize([1.10, 2.2, 3.3, 4.4]);
 
-  rdd.collect().then(function(results) {
-    console.log("results: ", results);
+  var rdd2 = rdd.map(function(num) {
+    return num*2;
+  });
+
+  rdd2.collect().then(function(results) {
     res.json({result: results});
     sc.stop();
   }).catch(function(err) {
+    console.error("error", err);
     res.status(500).send({error: err.msg});
     sc.stop();
   });

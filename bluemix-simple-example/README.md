@@ -4,7 +4,8 @@ Provides a simple example of an EclairJS Node application running in Bluemix.
 
 ## Installation
 
-1) You will need to setup a running instance of [Apache Spark 1.6 and EclairJS Nashorn](https://github.com/EclairJS/eclairjs-node/wiki/Build-and-Package) (or use our [Docker Cotainer](https://github.com/EclairJS/eclairjs-node/wiki/Using-the-Docker-Container)).
+1) You will need to setup a running instance of [Apache Spark 1.6 and EclairJS Nashorn](https://github.com/EclairJS/eclairjs-node/wiki/Build-and-Package) (or use our [Docker Container](https://github.com/EclairJS/eclairjs-node/wiki/Using-the-Docker-Container#deploying-on-ibm-bluemix)
+on Bluemix).
 
 2) Edit `manifest.yml` and set `JUPYTER_HOST` to be the IP address of where EclairJS Nashorn is installed.
 
@@ -17,7 +18,7 @@ Provides a simple example of an EclairJS Node application running in Bluemix.
 Visit the url created by Bluemix (`eclairjssample.mybluemix.net` for example) and you should see a simple web page with 
 a button.  Pressing the button will execute a simple Spark application and return the results once completed.
 
-The output should be `{"result":[1.1,2.2,3.3,4.4]}`.
+The output should be `{"result":[2.2,4.4,6.6,8.8]}`.
 
 ## How It Works
 
@@ -32,7 +33,11 @@ application:
 
   var rdd = sc.parallelize([1.10, 2.2, 3.3, 4.4]);
 
-  rdd.collect().then(function(results) {
+  var rdd2 = rdd.map(function(num) {
+    return num*2;
+  });
+
+  rdd2.collect().then(function(results) {
     console.log("results: ", results);
     res.json({result: results});
     sc.stop();

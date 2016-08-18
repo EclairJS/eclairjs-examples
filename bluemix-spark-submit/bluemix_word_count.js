@@ -29,13 +29,12 @@ var Tuple2 = require('eclairjs/Tuple2');
 Setup for using IBM BlueMix Object Store.
  */
 
-//var hadoopConf = sparkContext.hadoopConfiguration();
 sc.setHadoopConfiguration("fs.swift.service.softlayer.auth.url", "https://identity.open.softlayer.com/v3/auth/tokens");
 sc.setHadoopConfiguration("fs.swift.service.softlayer.auth.endpoint.prefix", "endpoints");
-sc.setHadoopConfiguration("fs.swift.service.softlayer.tenant", "b5e2b3ed2e44429b0777516795d2d12"); //product id
-sc.setHadoopConfiguration("fs.swift.service.softlayer.username", "ab3090cf06a34585aeed150043052836"); //user id
-sc.setHadoopConfiguration("fs.swift.service.softlayer.password", "R0fF.Pn~dKbb5HaP"); // password
-sc.setHadoopConfiguration("fs.swift.service.softlayer.apikey", "R0fF.Pn~dKbb5HaP"); // password
+sc.setHadoopConfiguration("fs.swift.service.softlayer.tenant", "product_id"); //product id
+sc.setHadoopConfiguration("fs.swift.service.softlayer.username", "user_id"); //user id
+sc.setHadoopConfiguration("fs.swift.service.softlayer.password", "secret"); // password
+sc.setHadoopConfiguration("fs.swift.service.softlayer.apikey", "secret"); // password
 
 var rdd = sc.textFile("swift://wordcount.softlayer/dream.txt").cache();
 
@@ -64,7 +63,3 @@ var rdd7 = rdd6.sortByKey(false);
 print("top 10 words = " + JSON.stringify(rdd7.take(10)));
 
 sc.stop();
-
-
-
-

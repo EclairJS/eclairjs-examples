@@ -3,8 +3,7 @@ applications:
   memory: 1024M
   instances: 1
   domain: mybluemix.net
-  name: Bluemix EclairJS Node Example
-  host: eclairjssample
+  name: EclairJS Example
   disk_quota: 1024M
   env:
-    JUPYTER_HOST: YOUR.IP.ADDRESS
+    JUPYTER_HOST: 169.44.9.114

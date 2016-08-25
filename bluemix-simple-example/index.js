@@ -18,7 +18,7 @@
 var express = require('express');
 
 var port = process.env.VCAP_APP_PORT || 5000;
-var host = process.env.VCAP_APP_HOST || 'localhost';
+var host = process.env.VCAP_APP_HOST || 'localhost'
 
 // setup the express server
 var app = express();
@@ -27,27 +27,25 @@ app.use(express.static('public'));
 var server = app.listen(port, host, function () {
 });
 
-// eclairjs
 var eclairjs = require('eclairjs');
 var sc;
 
 // our main entry point
 app.get('/do', function (req, res) {
-  sc = new eclairjs.SparkContext("local[*]", "Simple Spark Program");
+  if (!sc) {
+    sc = new eclairjs.SparkContext("local[*]", "Simple Spark Program");
+  }
 
   var rdd = sc.parallelize([1.10, 2.2, 3.3, 4.4]);
 
   var rdd2 = rdd.map(function(num) {
-    return num*2;
+    return num * 2;
   });
 
   rdd2.collect().then(function(results) {
     res.json({result: results});
-    sc.stop();
   }).catch(function(err) {
-    console.error("error", err);
-    res.status(500).send({error: err.msg});
-    sc.stop();
+    res.json({error: err});
   });
 });
 
@@ -59,12 +57,10 @@ function exit() {
   process.exit(0);
 }
 
-function stop(e) {
-  if (e) {
-    console.log('Error:', e);
-  }
-
+function stop() {
   if (sc) {
     sc.stop().then(exit).catch(exit);
+  } else {
+    exit();
   }
 }

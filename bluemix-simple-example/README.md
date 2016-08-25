@@ -4,6 +4,8 @@ Provides a simple example of an EclairJS Node application running in Bluemix.
 
 ## Installation
 
+A detailed guide on how to set this example up can be found [here](https://developer.ibm.com/node/2016/08/25/running-apache-spark-applications-with-node-js-on-ibm-bluemix/).
+
 1) You will need to setup a running instance of [Apache Spark 1.6 and EclairJS Nashorn](https://github.com/EclairJS/eclairjs-node/wiki/Build-and-Package) (or use our [Docker Container](https://github.com/EclairJS/eclairjs-node/wiki/Using-the-Docker-Container#deploying-on-ibm-bluemix)
 on Bluemix).
 

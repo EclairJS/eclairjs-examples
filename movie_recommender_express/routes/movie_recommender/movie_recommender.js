@@ -1,4 +1,5 @@
-var spark = require('eclairjs');
+var eclairjs = require('eclairjs');
+var spark = new eclairjs();
 
 /*
  * Globals

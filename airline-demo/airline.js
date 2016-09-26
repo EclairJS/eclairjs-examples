@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-var spark = require('eclairjs');
+var eclairjs = require('eclairjs');
+var spark = new eclairjs();
 
 var sparkMaster = process.env.SPARK_MASTER || "local[*]";
 console.log("spark master = " + sparkMaster);
@@ -44,7 +45,7 @@ function startStream(cb) {
     //.createStream(ssc, "10.11.19.101:2181", "floyd", "airline")
     .window(new spark.streaming.Duration(1000 * 60 * 15))
     .flatMap(function(chunk) {
-      return chunk[1].split('\n');
+      return chunk._2().split('\n');
     })
     .map(function(line) {
       var lineArr = line.split(",");

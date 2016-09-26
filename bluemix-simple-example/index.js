@@ -28,13 +28,11 @@ var server = app.listen(port, host, function () {
 });
 
 var eclairjs = require('eclairjs');
-var sc;
 
 // our main entry point
 app.get('/do', function (req, res) {
-  if (!sc) {
-    sc = new eclairjs.SparkContext("local[*]", "Simple Spark Program");
-  }
+  var spark = new eclairjs();
+  var sc = new spark.SparkContext("local[*]", "Simple Spark Program");
 
   var rdd = sc.parallelize([1.10, 2.2, 3.3, 4.4]);
 
@@ -43,8 +41,10 @@ app.get('/do', function (req, res) {
   });
 
   rdd2.collect().then(function(results) {
+    sc.stop();
     res.json({result: results});
   }).catch(function(err) {
+    sc.stop();
     res.json({error: err});
   });
 });
@@ -58,9 +58,5 @@ function exit() {
 }
 
 function stop() {
-  if (sc) {
-    sc.stop().then(exit).catch(exit);
-  } else {
-    exit();
-  }
+  exit();
 }

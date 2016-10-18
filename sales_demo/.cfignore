@@ -1,0 +1,8 @@
+node_modules
+docker
+docker-compose.yml
+data
+env.sh
+sl_env.sh
+local_env.sh
+.git

@@ -1,0 +1,67 @@
+<!--
+ * Copyright 2016 IBM Corp.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ -->
+
+<html>
+<head>
+    <title>EclairJS Multi Context Example</title>
+    <!-- Latest compiled and minified CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css" integrity="sha512-dTfge/zgoMYpP7QbHy4gWMEGsbsdZeCXz7irItjcC3sPUFtf0kuFbDz/ixG7ArTxmDjLXDmezHubeNikyKGVyQ==" crossorigin="anonymous">
+
+    <!-- Optional theme -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap-theme.min.css" integrity="sha384-aUGj/X2zp5rLCbBxumKTCw2Z50WgIr1vs/PFN4praOTvYXWlVyh2UtNUU0KAUhAX" crossorigin="anonymous">
+
+    <script>
+        document.onreadystatechange = function () {
+            if (document.readyState === "interactive") {
+                var port = location.port ? location.port : '80';
+                ws = new WebSocket("ws://"+location.hostname+":"+port);
+
+                // When a message is recieved with new flightdata and there is a popup
+                // opened for that airport update the chart.
+                ws.onmessage = function(e) {
+                    var data = JSON.parse(e.data);
+                    var container = document.getElementById("stream"+data.stream);
+                    container.innerHTML += data.data + " ";
+                    //
+                };
+
+                ws.onopen = function() {
+                    // heart beat, stops bluemix from closing connections
+                    window.setInterval(function() {
+                        ws.send(JSON.stringify({heartbeat: true}));
+                    }, 60000);
+                };
+            }
+        };
+    </script>
+
+    <style>
+        .status {
+            display: none;
+            cursor: none;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+  Stream 1:
+  <div id="stream1"></div>
+  <p></p>
+  Stream 2:
+  <div id="stream2"></div>
+</div>
+</body>
+</html>

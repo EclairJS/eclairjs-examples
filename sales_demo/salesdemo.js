@@ -71,14 +71,19 @@ var kafkaHost = process.env.KAFKA_HOST || "172.16.20.132";
 
 var maxPrice = 2199.98;
 
-//Create Linear Regresssion Model from static batch data.
+var modelSchema = DataTypes.createStructType([                                                              
+  DataTypes.createStructField("label", DataTypes.DoubleType, false),      
+  DataTypes.createStructField("features", new spark.ml.linalg.VectorUDT(), true)          
+]);
+
+
 function createModel(rdd) {
-    var trainingRDD =  rdd.map(function(line, Tuple, SqlDate, SqlTimestamp) {
+    var trainingRDD =  rdd.rdd().map(function(line) {
         var v = line.split("|")
         //product, location, date, time, units sold, price
         //return new Tuple(v[7], v[2], v[4], v[5], parseFloat(v[8]), parseFloat(v[10]), v[6]);
         return [v[7], v[2], v[4], v[5], parseFloat(v[8]), parseFloat(v[10]), v[6]];
-    }, []).filter(function(x) {
+    }).filter(function(x) {
         //filter out 0 units sold and 0 price
         return (x[5] > 0 && x[4] > 0 && x[6] == "SALE");
     }).map(function(t, RowFactory, SqlDate, SqlTimestamp) {
@@ -100,7 +105,7 @@ function createModel(rdd) {
     var df2 = df.join(allDatesInput, "date");
     var df3 = df2.groupBy("date", "values").agg({"price": "sum", "units": "sum"});
 
-    var rddLP = df3.map(function(row, maxPrice, Vectors, LabeledPoint) {
+    var rddLP = df3.rdd().map(function(row, maxPrice, Vectors, RowFactory) {
         var dateData = row.getList(1);
 
         var priceTotal = row.get(2);
@@ -112,19 +117,22 @@ function createModel(rdd) {
           featuresArray.push(val);
         });
 
-        //print(featuresArray);
-        //print(featuresArray.length);
-        //var features = Vectors.dense([Math.log(maxPrice / price)].concat(dateData))
         var features = Vectors.dense(featuresArray);
-        //print("features: " + features);
-
-        return new LabeledPoint(
-            Math.log(unitsTotal+1.0), 
+        var label = Math.log(unitsTotal+1.0);
+        var r = RowFactory.create([
+            label, 
             features
-        );
-    }, [maxPrice, spark.mllib.linalg.Vectors, spark.mllib.regression.LabeledPoint]);
+        ]);
 
-    var model = spark.mllib.regression.LinearRegressionWithSGD.train(rddLP, 100);
+        return r;
+    }, [maxPrice, spark.ml.linalg.Vectors, spark.sql.RowFactory]);
+
+    var trainingData = session.createDataFrame(rddLP, modelSchema);
+
+    var linearRegression = new spark.ml.regression.LinearRegression().
+      setFeaturesCol("features").setLabelCol("label")
+    model = linearRegression.fit(trainingData);
+
     return model;
 }
 
@@ -154,13 +162,9 @@ function startKafkaStream(cb) {
     return (row.get(5) > 0 && row.get(4) > 0 && row.get(6) == "SALE");
   }).foreachRDD(
     function(rdd, sqlContext, schema, allDatesInput) {
-      print("1");
       var df = sqlContext.createDataFrame(rdd, schema);
-      print("2");
       var df2 = df.join(allDatesInput, "date");
-      print("3");
       var rows = df2.collect();
-      print("4");
 
       var data = [];
       rows.forEach(function(row) {
@@ -228,13 +232,33 @@ var stream;
 var startStream = function(dataCallback) {
     if (!stream) {
         model = createModel(batchTlogLines);
+    
+        var dummy = session.createDataFrame([
+          spark.sql.RowFactory.create([
+            1,
+            spark.ml.linalg.Vectors.dense([0.82976249729615,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0])
+          ])
+        ], modelSchema);
+
+        var res = model.transform(dummy);
+
+        console.log("res count:");
+        res.count().then(function(r) { 
+          console.log(r); 
+        }).catch(function(err) { console.log(err); });;
+
+        /*
 
         var dummyvectors = spark.mllib.linalg.Vectors.dense([0.82976249729615,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0]);
 
+        val fullPredictions = model.transform(data).cache()
+            val predictions = fullPredictions.select("prediction").rdd.map(_.getDouble(0))
+
         model.predict(dummyvectors).then(function() {
           console.log("model done");
-          startKafkaStream(dataCallback);
+          //startKafkaStream(dataCallback);
         }).catch(console.error);
+        */
     }
 }
 
@@ -277,4 +301,5 @@ RetailSalesDemo.prototype.query = function(sql) {
 }
 
 module.exports = new RetailSalesDemo();
-//}()
+
+startStream()

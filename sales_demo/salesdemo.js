@@ -70,7 +70,7 @@ fields.push(DataTypes.createStructField("type", DataTypes.StringType, true));
 
 var schema = DataTypes.createStructType(fields);
 
-var kafkaHost = process.env.KAFKA_HOST || "172.16.20.132";
+var kafkaHost = process.env.KAFKA_HOST || "127.0.0.1"
 
 var maxPrice = 2199.98;
 
@@ -133,7 +133,7 @@ function startKafkaStream(cb) {
 
   //Use Kafka Receiver
   return spark.streaming.kafka.KafkaUtils.createStream(
-    ssc, "salesdemo-group", "localhost:9092", "tlog"
+    ssc, "salesdemo-group", kafkaHost+":9092", "tlog"
   ).map(function(t, RowFactory, SqlDate, SqlTimestamp) {
     var line = t._2().trim();
     var v = line.split("|");

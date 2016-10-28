@@ -7,7 +7,7 @@ services:
      - "2181:2181"
 
   kafka:
-    build: "https://github.com/wurstmeister/kafka-docker.git#0.9.0.1"
+    build: "wustmeister/kafka-docker:0.10.0.0"
     ports:
       - "9092:9092"
     environment:
@@ -18,21 +18,21 @@ services:
     depends_on:
       - zookeeper
 
-#  eclair:
-#    image: eclairjs/minimal-gateway
-#    ports:
-#      - "8888:8888"
-#    volumes:
-#      - ./data:/data
-#    depends_on:
-#      - kafka
+  eclair:
+    image: eclairjs/minimal-gateway
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./data:/data
+    depends_on:
+      - kafka
 
   pump:
     image: java:8
     volumes:
       - ./docker:/pump
       - ./data/streaming:/streaming
-    command: "/pump/DTPump/DTPump-0.1.3/bin/dt-pump --repeat --broker-list=${KAFKA_HOST}:9092 --data-dir=/streaming --topic=tlog --data-rate=2 --throttle=500 --verbose"
+    command: "/pump/DTPump/DTPump-0.1.3/bin/dt-pump --repeat --broker-list=kafka:9092 --data-dir=/streaming --topic=tlog --data-rate=2 --throttle=500 --verbose"
     depends_on:
       - kafka
 

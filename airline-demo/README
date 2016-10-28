@@ -2,9 +2,8 @@ Prereqs:
     - Docker (see https://docs.docker.com/engine/installation/mac/)
 
 Setup:
-    - `export JUPYTER_HOST=192.168.99.100`
-    - `cd tmpnp/examples/airline`
     - run `npm install`
+    - run `. ./docker_env.sh`
 
 Running the demo:    
     - Run `docker-compose up -d`

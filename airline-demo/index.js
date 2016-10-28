@@ -67,21 +67,23 @@ wss.on('connection', function(ws) {
       registeredAirports.splice(registeredAirports.indexOf(msg.unregisterAirport),1);
     }
 
-    console.log("opened airports: ",registeredAirports.toString());
+    console.log("popups are open for airports: ",registeredAirports.toString());
   });
 });
 
 app.get('/getCarriers', function (request, response) {
   var airportCode = request.query.airport;
+  console.log("getCarriers for: ",airportCode);
   try {
+    // carriers will be a sql.Dataset
     var carriers = airlineDemo.query("SELECT DISTINCT carrier FROM flightstoday WHERE origin='"+airportCode+"'");
-
-    carriers.cache().toJSON().then(function(result){
+    // the result from collect is an array of sql.Row types
+    carriers.collect().then(function(result){
       var d = [];
       result.forEach(function(item) {
-        d.push({carrier: item.values[0]})
+        d.push({carrier: item.get(0)});
       });
-      //console.log('distinct carriers for ',airportCode,': ',JSON.stringify(result));
+      console.log('distinct carriers for ',airportCode,': ',JSON.stringify(result));
       response.json(d);
     });
   } catch (e) {
@@ -93,12 +95,14 @@ app.get('/getSchedule', function (request, response) {
     var airportCode = request.query.airport;
     var carrier = request.query.carrier;
     try {
+    // flightsToday will be a Dataset
     var flightsToday = airlineDemo.query("SELECT flight_num,destination FROM flightstoday WHERE origin='" + 
         airportCode + "' AND carrier='" + carrier + "'");
-    flightsToday.cache().toJSON().then(function(result){
+    // the result from collect is an array of sql.Row types
+    flightsToday.collect().then(function(result){
       var d = [];
       result.forEach(function(item) {
-        d.push({flight_num: item.values[0], destination: item.values[1]})
+        d.push({flight_num: item.get(0), destination: item.get(1)});
       });
       response.json(d);
     });

@@ -4,5 +4,6 @@ docker-compose up
 
 #Run the Node.js app
 
+npm install
 . ./docker_env.sh
 node --harmony app.js

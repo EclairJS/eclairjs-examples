@@ -1,1 +1,8 @@
-Work in Progress
+#Launch the docker environment.
+
+docker-compose up
+
+#Run the Node.js app
+
+. ./docker_env.sh
+node --harmony app.js

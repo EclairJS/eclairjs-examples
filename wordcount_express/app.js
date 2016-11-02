@@ -44,7 +44,7 @@ wss.on('connection', function(ws) {
 
 var count = require('./count.js');
 function startCount() {
-    var file = './data/dream.txt';
+    var file = '/tmp/data/dream.txt';
     count.start(file, function(rawdata){
         // Recall raw data from EclaisJS is Tuple2[] with {"0":count, "1":word}.
         // Convert to something the UI can easily use.

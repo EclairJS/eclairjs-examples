@@ -7,14 +7,16 @@ var spark = new eclairjs();
 
 var pathToSmallDataset = process.env.SMALL_DATASET;
 var pathToCompleteDataset = process.env.LARGE_DATASET;
-var complete_ratings_data_path = process.env.SAVED_DATA +'/complete_ratings_data';
-var predictionModleValuesDFPath = process.env.SAVED_DATA + '/predictionModleValuesDF';
-var complete_movies_titlesDFPath = process.env.SAVED_DATA + '/complete_movies_titlesDF';
-var complete_movies_data_path = process.env.SAVED_DATA + '/complete_movies_data';
-var complete_movies_titles_path = process.env.SAVED_DATA + '/complete_movies_titles';
-var movie_rating_counts_RDD_path = process.env.SAVED_DATA + '/movie_rating_counts_RDD';
-var new_user_recommendations_rating_title_and_count_RDD2_filtered_path = process.env.SAVED_DATA + '/new_user_recommendations_rating_title_and_count_RDD2_filtered';
-var new_ratings_model_path = process.env.SAVED_DATA + '/new_ratings_model';
+var use_saved_data = process.env.USE_SAVED_DATA;
+var saved_data_path = process.env.SAVED_DATA || "/tmp";
+var complete_ratings_data_path = saved_data_path +'/complete_ratings_data';
+var predictionModleValuesDFPath = saved_data_path + '/predictionModleValuesDF';
+var complete_movies_titlesDFPath = saved_data_path + '/complete_movies_titlesDF';
+var complete_movies_data_path = saved_data_path + '/complete_movies_data';
+var complete_movies_titles_path = saved_data_path + '/complete_movies_titles';
+var movie_rating_counts_RDD_path = saved_data_path + '/movie_rating_counts_RDD';
+var new_user_recommendations_rating_title_and_count_RDD2_filtered_path = saved_data_path + '/new_user_recommendations_rating_title_and_count_RDD2_filtered';
+var new_ratings_model_path = saved_data_path + '/new_ratings_model';
 
 var top25Recommendation;
 var rebuildingTop25 = 'complete';
@@ -67,12 +69,13 @@ function failureExit(e) {
  * they can be reused.
  */
 function movie_recommender_init() {
+    console.log("starting movie_recommender_init.....");
 	/*
 	 * Load the small movielens data sets we will use them to train the model.
 	 */
 	var small_ratings_raw_data = sc.textFile(pathToSmallDataset + '/ratings.csv');
 	small_ratings_raw_data.take(1).then(function(val) {
-		  //console.log("Success:", val);
+		  console.log("Success:", val);
 		  var small_ratings_raw_data_header = val[0];
 		  var small_ratings_data = small_ratings_raw_data
 		      .filter(function (line, small_ratings_raw_data_header) {
@@ -141,7 +144,7 @@ function movie_recommender_init() {
 				    	        promises.push(t.mean());
 				    	    });
 				    	    Promise.all(promises).then(function(values) {
-				    	    	//console.log("Promise.all " + values);
+				    	    	console.log("Promise.all " + values);
 				    	    	for (var i = 0; i < values.length; i++){
 				    	    		var error = Math.sqrt(values[i]);
 				    	        	errors[err] = error;
@@ -235,7 +238,7 @@ function movie_recommender_init() {
 							    	         }, [spark.sql.RowFactory]);
 
 								    	     //Apply the schema to the RDD and create Dataframe
-								    	     complete_movies_titlesDF = sqlContext.createDataFrame(rowRDD, schema);
+								    	     complete_movies_titlesDF = sparkSession.createDataFrame(rowRDD, schema);
 								    	     
 								    	     /*
 								    	     Another thing we want to do, is give recommendations
@@ -266,36 +269,43 @@ function movie_recommender_init() {
 								    	            var coutAvg = ID_with_avg_ratings._2();
 								    	            return new Tuple2(ID_with_avg_ratings._1(), coutAvg._1()); // movieID, rating count
 								    	        }, [spark.Tuple2]);
-		
-								       	    /*
-									   	     * Save what we have built for quick server spin up on future starts
-									   	     */
-									   	    complete_ratings_data.saveAsObjectFile(complete_ratings_data_path, true);
-									   	    complete_movies_data.saveAsObjectFile(complete_movies_data_path, true);
-									   	    complete_movies_titles.saveAsObjectFile(complete_movies_titles_path, true);
-									   	    movie_rating_counts_RDD.saveAsObjectFile(movie_rating_counts_RDD_path, true);
-									   	    /*
-									   	     * save the valuse used by the ALS prediction model in a Dataframe
-									   	     */
-									   	     var DataTypes = spark.sql.types.DataTypes;
+
+                                            // FIXME: There is something broken with saving data to object files.
+                                            // Both in local mode and running with docker nothing seems to process
+                                            // passed saving movie_rating_counts_RDD.
+                                            if (use_saved_data) {		
+                                                /*
+                                                 * Save what we have built for quick server spin up on future starts
+                                                 */
+                                                complete_ratings_data.saveAsObjectFile(complete_ratings_data_path, true);
+                                                complete_movies_data.saveAsObjectFile(complete_movies_data_path, true);
+                                                complete_movies_titles.saveAsObjectFile(complete_movies_titles_path, true);
+                                                movie_rating_counts_RDD.saveAsObjectFile(movie_rating_counts_RDD_path, true);
+
+                                                /*
+                                                 * save the valuse used by the ALS prediction model in a Dataframe
+                                                 */
+                                                var DataTypes = spark.sql.types.DataTypes;
 									
-									   	     var fields = [];
-									   	     fields.push(DataTypes.createStructField("best_rank", DataTypes.IntegerType, true));
-									   	     fields.push(DataTypes.createStructField("iterations", DataTypes.IntegerType, true));
-									   	     fields.push(DataTypes.createStructField("regularization_parameter", DataTypes.FloatType, true));
-									   	     fields.push(DataTypes.createStructField("blocks", DataTypes.IntegerType, true));
-									   	     fields.push(DataTypes.createStructField("seed", DataTypes.IntegerType, true));
-									   	     
-									   	     var schema = DataTypes.createStructType(fields);
-									   	     var row = spark.sql.RowFactory.create([ best_rank, iterations, regularization_parameter, blocks, seed]);
-									   	     predictionModleValuesDF = sqlContext.createDataFrame([[best_rank, iterations, regularization_parameter, blocks, seed]], schema);
-									   	     predictionModleValuesDF.take(1).then(function(result){
-									   	    	 predictionModleValuesDF.write().mode('overwrite').json(predictionModleValuesDFPath);
-									   	     }, function(err){
-									   	    	 console.log('err ' + err);
-									   	     });								    	     
-									   	     
-									   	     complete_movies_titlesDF.write().mode('overwrite').json(complete_movies_titlesDFPath);
+                                                var fields = [];
+                                                fields.push(DataTypes.createStructField("best_rank", DataTypes.IntegerType, true));
+                                                fields.push(DataTypes.createStructField("iterations", DataTypes.IntegerType, true));
+                                                fields.push(DataTypes.createStructField("regularization_parameter", DataTypes.FloatType, true));
+                                                fields.push(DataTypes.createStructField("blocks", DataTypes.IntegerType, true));
+                                                fields.push(DataTypes.createStructField("seed", DataTypes.IntegerType, true));
+                                                 
+                                                var schema = DataTypes.createStructType(fields);
+
+                                                var row = spark.sql.RowFactory.create([best_rank, iterations, regularization_parameter, blocks, seed]);
+                                                predictionModleValuesDF = sparkSession.createDataFrame([[best_rank, iterations, regularization_parameter, blocks, seed]], schema);
+                                                predictionModleValuesDF.take(1).then(function(result){
+                                                    predictionModleValuesDF.write().mode('overwrite').json(predictionModleValuesDFPath);
+                                                }, function(err){
+                                                    console.log('err ' + err);
+                                                });	
+                                                 
+                                                complete_movies_titlesDF.write().mode('overwrite').json(complete_movies_titlesDFPath);
+                                            }
 								    	   
 								    	    /*
 								    	     Now we need to rate some movies for the new user.
@@ -303,11 +313,11 @@ function movie_recommender_init() {
 								    	    rateMoviesForUser();
 
 							    	     }, failureExit);
-						    	      }, failureExit); 
+						    	      }, failureExit);
 					    	       }, failureExit);
 				    	       }, failureExit);
 				    	    }, failureExit);
-			    	    }, failureExit);	  
+			    	    }, failureExit); 
 		    }, failureExit);
 	      }, failureExit);
 		}, function(err) {
@@ -324,6 +334,7 @@ function movie_recommender_init() {
  * @param {function} cb callback
  */
 function rateMoviesForUser(cb) {
+        console.log("rating movies for user");
 		rebuildTop25 = 'inProgress';
 
 		/*
@@ -662,6 +673,7 @@ exports.rate = function(req, res){
  * Start a Spark session.
  */
 
+/*
 var sparkConf = new spark.SparkConf(false)
 .set("spark.executor.memory", "10g")
 .set("spark.driver.memory", "6g")
@@ -669,62 +681,75 @@ var sparkConf = new spark.SparkConf(false)
 .setAppName("movie_recommender");
 var sc = new spark.SparkContext(sparkConf);
 var sqlContext = new spark.sql.SQLContext(sc);
+*/
 
-/* 
- * First try to load saved model and RDD's that have been computed in the passed
- */
-complete_ratings_data = sc.objectFile(complete_ratings_data_path); 
-predictionModleValuesDF = sqlContext.read().json(predictionModleValuesDFPath);
-complete_movies_titlesDF = sqlContext.read().json(complete_movies_titlesDFPath);
-complete_movies_data = sc.objectFile(complete_movies_data_path); 
-complete_movies_titles = spark.rdd.PairRDD.fromRDD(sc.objectFile(complete_movies_titles_path));
-movie_rating_counts_RDD = spark.rdd.PairRDD.fromRDD(sc.objectFile(movie_rating_counts_RDD_path));
-new_user_recommendations_rating_title_and_count_RDD2_filtered = sc.objectFile(new_user_recommendations_rating_title_and_count_RDD2_filtered_path);
+var sparkSession = spark.sql.SparkSession.builder()
+    .appName("Movie Recommender Express")
+    .config("spark.executor.memory", "10g")
+    .config("spark.driver.memory", "6g")
+    .getOrCreate();
+var sc = sparkSession.sparkContext();
 
-/*
- * We need to do a take, to actually determine if the RDD's and models where loaded.
- */
-Promise.all([
-             complete_ratings_data.take(1), 
-             predictionModleValuesDF.take(1), 
-             complete_movies_titlesDF.take(1), 
-             complete_movies_data.take(1),
-             complete_movies_titles.take(1),
-             movie_rating_counts_RDD.take(1),
-             new_user_recommendations_rating_title_and_count_RDD2_filtered.take(1)
-             ]).then(function(resluts){
-            	 /*
-            	  * The saved RDDs and model were loaded, so we can reusse them
-            	  */
-	console.log(' All saved data loaded');
-	var row = resluts[1][0];
-	best_rank = row.get(row.fieldIndex('best_rank'));
-	iterations = row.get(row.fieldIndex('iterations'));
-	regularization_parameter = row.get(row.fieldIndex('regularization_parameter'));
-	blocks = row.get(row.fieldIndex('blocks'));
-	seed = row.get(row.fieldIndex('seed'));
-	// load the model
-	new_ratings_model = spark.mllib.recommendation.MatrixFactorizationModel.load(sc, new_ratings_model_path);
-	// check to see if the model loaded from a saved model.
-	predictRating([{"_values": [500]}], function(result) {
-		console.log("Model is loaed " + JSON.stringify(result));
-		getTop25FromRDD(new_user_recommendations_rating_title_and_count_RDD2_filtered, function(top_movies) {
-    		top25Recommendation = top_movies;
-    		rebuildingTop25 = 'complete';
-    	});
-	}, function(err) {
-		// the model was never saved so build it now
-		console.log(err);
-		rateMoviesForUser();
-		
-	})
-	
-}, function(err){
-	/*
-	 * RDDs and models do not exist so we need to build them
-	 */
-	console.log('No saved data rebuilding models and data, this could take a while...');
-	movie_recommender_init();
-});
+// Allow bypass of using saved data for debug/dev sake.
+if (use_saved_data) {
+    /* 
+     * First try to load saved model and RDD's that have been computed in the passed
+     */
 
-	
+    complete_ratings_data = sc.objectFile(complete_ratings_data_path); 
+    predictionModleValuesDF = sparkSession.read().json(predictionModleValuesDFPath);
+    complete_movies_titlesDF = sparkSession.read().json(complete_movies_titlesDFPath);
+    complete_movies_data = sc.objectFile(complete_movies_data_path); 
+    complete_movies_titles = spark.rdd.PairRDD.fromRDD(sc.objectFile(complete_movies_titles_path));
+    movie_rating_counts_RDD = spark.rdd.PairRDD.fromRDD(sc.objectFile(movie_rating_counts_RDD_path));
+    new_user_recommendations_rating_title_and_count_RDD2_filtered = sc.objectFile(new_user_recommendations_rating_title_and_count_RDD2_filtered_path);
+
+    /*
+     * We need to do a take, to actually determine if the RDD's and models where loaded.
+     */
+    Promise.all([
+                 complete_ratings_data.take(1), 
+                 predictionModleValuesDF.take(1), 
+                 complete_movies_titlesDF.take(1), 
+                 complete_movies_data.take(1),
+                 complete_movies_titles.take(1),
+                 movie_rating_counts_RDD.take(1),
+                 new_user_recommendations_rating_title_and_count_RDD2_filtered.take(1)
+                 ]).then(function(resluts){
+                     /*
+                      * The saved RDDs and model were loaded, so we can reusse them
+                      */
+        console.log(' All saved data loaded');
+        var row = resluts[1][0];
+        best_rank = row.get(row.fieldIndex('best_rank'));
+        iterations = row.get(row.fieldIndex('iterations'));
+        regularization_parameter = row.get(row.fieldIndex('regularization_parameter'));
+        blocks = row.get(row.fieldIndex('blocks'));
+        seed = row.get(row.fieldIndex('seed'));
+        // load the model
+        new_ratings_model = spark.mllib.recommendation.MatrixFactorizationModel.load(sc, new_ratings_model_path);
+        // check to see if the model loaded from a saved model.
+        predictRating([{"_values": [500]}], function(result) {
+            console.log("Model is loaed " + JSON.stringify(result));
+            getTop25FromRDD(new_user_recommendations_rating_title_and_count_RDD2_filtered, function(top_movies) {
+                top25Recommendation = top_movies;
+                rebuildingTop25 = 'complete';
+            });
+        }, function(err) {
+            // the model was never saved so build it now
+            console.log(err);
+            rateMoviesForUser();
+            
+        })
+        
+    }, function(err){
+        /*
+         * RDDs and models do not exist so we need to build them
+         */
+        console.log('No saved data rebuilding models and data, this could take a while...');
+        movie_recommender_init();
+    });
+} else {
+    console.log('No saved data rebuilding models and data, this could take a while...');
+    movie_recommender_init();
+}

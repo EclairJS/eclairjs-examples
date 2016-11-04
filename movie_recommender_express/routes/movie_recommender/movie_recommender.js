@@ -7,7 +7,14 @@ var spark = new eclairjs();
 
 var pathToSmallDataset = process.env.SMALL_DATASET;
 var pathToCompleteDataset = process.env.LARGE_DATASET;
+
+// TODO: We need a new npm release of EclairJS Client for SAVED_DATA to work.
+// In the 0.8 release sql.Dataset.write() is not implemented for Client but it is on master.
+// Workaround in mean time is to use "eclairjs": "../../eclairjs/client" in package.json
+// or leave USE_SAVED_DATA as unset environment variable. It is implemented in latest version
+// of ElcairJS Server so server piece (and latest docker image) are ok.
 var use_saved_data = process.env.USE_SAVED_DATA;
+
 var saved_data_path = process.env.SAVED_DATA || "/tmp";
 var complete_ratings_data_path = saved_data_path +'/complete_ratings_data';
 var predictionModleValuesDFPath = saved_data_path + '/predictionModleValuesDF';
@@ -297,8 +304,9 @@ function movie_recommender_init() {
                                                 var schema = DataTypes.createStructType(fields);
 
                                                 var row = spark.sql.RowFactory.create([best_rank, iterations, regularization_parameter, blocks, seed]);
-                                                predictionModleValuesDF = sparkSession.createDataFrame([[best_rank, iterations, regularization_parameter, blocks, seed]], schema);
+                                                predictionModleValuesDF = sparkSession.createDataFrame([row], schema);
                                                 predictionModleValuesDF.take(1).then(function(result){
+                                                    //console.log("predictionModleValuesDF result: ",result);
                                                     predictionModleValuesDF.write().mode('overwrite').json(predictionModleValuesDFPath);
                                                 }, function(err){
                                                     console.log('err ' + err);

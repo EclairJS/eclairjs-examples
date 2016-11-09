@@ -45,7 +45,7 @@ var count = require('./count.js');
 function startCount() {
     var file = 'file:/data/dream.txt';
     count.start(file, function(rawdata){
-        // Recall raw data from EclaisJS is Tuple2[] with {"0":count, "1":word}.
+        // Recall raw data from EclairJS is Tuple2[] with {"0":count, "1":word}.
         // Convert to something the UI can easily use.
         //console.log("rawdata recieved from ejs: ",JSON.stringify(rawdata));
         var results = [];

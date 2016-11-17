@@ -9,7 +9,7 @@
     "express": "~4.13.1",
     "morgan": "~1.6.1",
     "serve-favicon": "~2.3.0",
-    "eclairjs": "^0.8",
+    "eclairjs": "^0.9",
     "ws": "~1.0"
   },
   "scripts": {

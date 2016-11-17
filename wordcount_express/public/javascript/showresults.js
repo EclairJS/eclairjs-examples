@@ -1,3 +1,5 @@
+var ws;
+
 window.onload = function() {
     var port = location.port ? location.port : '80';
     ws = new WebSocket("ws://"+location.hostname+":"+port);
@@ -17,8 +19,17 @@ window.onload = function() {
         }
     };
 
-    // When the websocket is open let NodeJS know it can start the EclairJS piece.
-    ws.onopen = function() {
-        ws.send(JSON.stringify({startCount: true}));
-    };
 };
+
+// When the user clicks the button let NodeJS know it can start the EclairJS counting piece.
+function clickme() {
+    if (ws) {
+        // First clear out any old results
+        var list = document.getElementById("topTen");
+        while(list.hasChildNodes()) {
+            list.removeChild(list.children[0]);
+        }
+        ws.send(JSON.stringify({startCount: true}));
+    }
+};
+

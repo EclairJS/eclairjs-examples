@@ -25,8 +25,7 @@ app.get('/', home.index);
 // Start listening for requests
 var server = app.listen(app.get('port'), app.get('host'), function(){
     console.log('Express server listening on port ' + app.get('port'));
-  }
-);
+});
 
 var wss = new WebSocketServer({
   server: server
@@ -44,9 +43,9 @@ wss.on('connection', function(ws) {
 
 var count = require('./count.js');
 function startCount() {
-    var file = './data/dream.txt';
+    var file = 'file:/data/dream.txt';
     count.start(file, function(rawdata){
-        // Recall raw data from EclaisJS is Tuple2[] with {"0":count, "1":word}.
+        // Recall raw data from EclairJS is Tuple2[] with {"0":count, "1":word}.
         // Convert to something the UI can easily use.
         //console.log("rawdata recieved from ejs: ",JSON.stringify(rawdata));
         var results = [];

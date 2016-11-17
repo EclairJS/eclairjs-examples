@@ -16,8 +16,13 @@ p.header {
     margin-bottom: 25px;
 }
 
+button.count {
+    font-size: 1em;
+}
+
 #topTen > li {
     list-style-type: none;
-    margin-left: -25px;
+    margin-left: -40px;
     padding-top: 5px;
 }
+

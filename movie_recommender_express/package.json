@@ -7,8 +7,8 @@
   },
   "dependencies": {
     "express": "3.2.6",
-    "eclairjs": "git+https://github.com/EclairJS/eclairjs.git",
     "jade": "*",
-    "ws": "~1.0"
+    "ws": "~1.0",
+    "eclairjs": "^0.9"
   }
 }

@@ -16,6 +16,23 @@
 
 var eclairjs = require('eclairjs');
 var spark = new eclairjs();
+
+var KafkaUtils = require('eclairjs-kafka');
+var kafkaUtils = new KafkaUtils({
+  jar: 'file:/Users/bburns/dev/eclairjs/external/eclairjs-kafka/server/target/eclairjs-kafka-0.9-jar-with-dependencies.jar',
+  eclairjs: spark
+});
+
+spark.addModule(kafkaUtils);
+
+var Swift = require('eclairjs-swift');
+spark.addModule(new Swift({
+  jar: 'file:/Users/bburns/dev/eclairjs/external/eclairjs-swift/server/target/eclairjs-swift-0.9-jar-with-dependencies.jar',
+  service: 'salesdemodata',
+  eclairjs: spark
+}));
+
+
 var session = spark.sql.SparkSession.builder()                                  
  .appName("Retail Sales Demo")                                                        
  .getOrCreate();  
@@ -132,8 +149,8 @@ function startKafkaStream(cb) {
   console.log("Using kafakHost: " + kafkaHost);
 
   //Use Kafka Receiver
-  return spark.streaming.kafka.KafkaUtils.createStream(
-    ssc, "salesdemo-group", kafkaHost+":9092", "tlog"
+  return kafkaUtils.createMessageHubStream(
+    ssc, "salesdemo-group", "tlog"
   ).map(function(t, RowFactory, SqlDate, SqlTimestamp) {
     var line = t._2().trim();
     var v = line.split("|");
@@ -273,3 +290,5 @@ RetailSalesDemo.prototype.query = function(sql) {
 }
 
 module.exports = new RetailSalesDemo();
+
+//startStream();

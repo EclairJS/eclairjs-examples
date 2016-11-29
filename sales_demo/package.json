@@ -9,7 +9,9 @@
     "express": "~4.13.1",
     "morgan": "~1.6.1",
     "serve-favicon": "~2.3.0",
-    "eclairjs": "^0.9",
+    "eclairjs": "/Users/bburns/dev/eclairjs/client",
+    "eclairjs-swift": "/Users/bburns/dev/eclairjs/external/eclairjs-swift/client",
+    "eclairjs-kafka": "/Users/bburns/dev/eclairjs/external/eclairjs-kafka/client",
     "ws": "~1.0"
   },
   "scripts": {

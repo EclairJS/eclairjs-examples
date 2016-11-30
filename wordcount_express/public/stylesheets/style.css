@@ -16,6 +16,10 @@ p.header {
     margin-bottom: 25px;
 }
 
+p.appinput {
+    margin-bottom: 35px;
+}
+
 button.count {
     font-size: 1em;
 }

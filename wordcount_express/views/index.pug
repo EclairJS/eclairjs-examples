@@ -4,6 +4,10 @@ block content
   h1= title
   p.header Welcome to #{title}
   p
+    label(for="appInput") Enter optional input to send to the app:
+  p.appinput
+    input(id="appInput" type="textfield")
+  p
     button.count(onclick="clickme()") Count!
   p
     div(id="countResults" class="results")

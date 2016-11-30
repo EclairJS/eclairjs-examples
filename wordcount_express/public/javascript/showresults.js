@@ -29,7 +29,10 @@ function clickme() {
         while(list.hasChildNodes()) {
             list.removeChild(list.children[0]);
         }
-        ws.send(JSON.stringify({startCount: true}));
+        // Get the value of the optional input.
+        var optional = document.getElementById("appInput");
+        var val = optional && optional.value ? optional.value : "";
+        ws.send(JSON.stringify({startCount: true, optional: val}));
     }
 };
 

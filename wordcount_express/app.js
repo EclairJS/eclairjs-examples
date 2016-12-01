@@ -36,14 +36,15 @@ wss.on('connection', function(ws) {
     console.log("*******",message);
     var msg = JSON.parse(message);
     if (msg && msg.startCount) {
-        startCount(msg.optional || "");
+        startCount(msg.filename || "");
     }
   });
 });
 
 var count = require('./count.js');
-function startCount(optionalInput) {
-    var file = 'file:/data/dream.txt';
+function startCount(filename) {
+    filename = filename.length > 0 ? filename : 'dream.txt';
+    var file = 'file:/data/' + filename;
     count.start(file, function(rawdata){
         // Recall raw data from EclairJS is Tuple2[] with {"0":count, "1":word}.
         // Convert to something the UI can easily use.
@@ -53,12 +54,12 @@ function startCount(optionalInput) {
         wss.clients.forEach(function(client) {
             try {
                 // Send the results to the browser
-                client.send(JSON.stringify(results));
+                client.send(JSON.stringify({results: results, filename: filename}));
             } catch (e) {
                 console.log(e);
             }
         });
-    }, optionalInput);
+    }, filename);
 };
 
 // stop spark  when we stop the node program

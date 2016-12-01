@@ -3,10 +3,12 @@ extends layout.pug
 block content
   h1= title
   p.header Welcome to #{title}
-  p
-    label(for="appInput") Enter optional input to send to the app:
-  p.appinput
-    input(id="appInput" type="textfield")
+  p 
+    span You can specify a filename for a textfile under your data directory in the entry field below.
+    span &nbsp;&nbsp;If one is not provided a default file (dream.txt) will be processed.
+  p.filename
+    label(for="filename") Enter an optional filename:
+    input(id="filename" type="textfield")
   p
     button.count(onclick="clickme()") Count!
   p

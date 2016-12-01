@@ -16,12 +16,17 @@ p.header {
     margin-bottom: 25px;
 }
 
-p.appinput {
+p.filename {
     margin-bottom: 35px;
+}
+
+p.filename > label {
+    padding-right: 10px;
 }
 
 button.count {
     font-size: 1em;
+    cursor: pointer;
 }
 
 #topTen > li {

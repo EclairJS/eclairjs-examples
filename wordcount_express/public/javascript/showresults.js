@@ -9,10 +9,12 @@ window.onload = function() {
         if (e.data) {
             var list = document.getElementById("topTen");
             var data = JSON.parse(e.data);
-            //console.log("data: ",data);
-            data.forEach(function(item){
+            console.log("data: ",data);
+            var results = data.results || [];
+            var filename = data.filename || "the text";
+            results.forEach(function(item){
                 var li = document.createElement("li");
-                var text = document.createTextNode("The word '"+item.word+"' appears "+item.count+" times in the text");
+                var text = document.createTextNode("The word '"+item.word+"' appears "+item.count+" times in "+filename);
                 li.appendChild(text);
                 list.appendChild(li);
             });
@@ -30,9 +32,9 @@ function clickme() {
             list.removeChild(list.children[0]);
         }
         // Get the value of the optional input.
-        var optional = document.getElementById("appInput");
-        var val = optional && optional.value ? optional.value : "";
-        ws.send(JSON.stringify({startCount: true, optional: val}));
+        var optional = document.getElementById("filename");
+        var filename = optional && optional.value ? optional.value : "";
+        ws.send(JSON.stringify({startCount: true, filename: filename}));
     }
 };
 

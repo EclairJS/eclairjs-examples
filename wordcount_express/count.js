@@ -44,11 +44,8 @@ function startCount(file, callback) {
 function Count() {
 }
 
-Count.prototype.start = function(file, callback, optionalInput) {
-  // Do whatever with optionalInput here - can pass into startCount()
-  // if desired or whatever from this point.
-  console.log("Count.start received optionalInput param: ",optionalInput);
-
+Count.prototype.start = function(file, callback, filename) {
+  console.log("Count.start for file: ",filename);
   startCount(file, callback);
 }
 

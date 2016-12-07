@@ -36,6 +36,7 @@ var movie_rating_counts_RDD;
 var new_user_recommendations_rating_title_and_count_RDD2_filtered;
 var predictionModleValuesDF;
 
+
 /*
  * a starter group of movies so we have something for the first pridtions
  */
@@ -88,7 +89,15 @@ function movie_recommender_init() {
 		          return new Rating(tokens[0], tokens[1], tokens[2]);
 		      }, [spark.mllib.recommendation.Rating])
 		      .cache();
-		  
+		  // hacking
+		  small_ratings_data.take(3).then(function(result){
+			  console.log("######small_ratings_data: " + JSON.stringify(result));
+		  });
+		  small_ratings_data.randomSplit([0.6, 0.2, 0.2], 0).then(function(split){
+  	    	var training_RDD = split[0];
+	    	    var validation_RDD = split[1];
+		  });
+		  // end hacking
 		  	var small_movies_raw_data = sc.textFile(pathToSmallDataset + '/movies.csv');
 		    small_movies_raw_data.take(1).then(function(result){
 		    	 var small_movies_raw_data_header = result[0];
@@ -686,11 +695,34 @@ var sqlContext = new spark.sql.SQLContext(sc);
 */
 
 var sparkSession = spark.sql.SparkSession.builder()
-    .appName("Movie Recommender Express")
-    .config("spark.executor.memory", "10g")
-    .config("spark.driver.memory", "6g")
-    .getOrCreate();
+.appName("Movie Recommender Express")
+.config("spark.executor.memory", "10g")
+.config("spark.driver.memory", "6g")
+.getOrCreate();
 var sc = sparkSession.sparkContext();
+
+var swift;
+if(process.env.VCAP_SERVICES) {
+    var vcap = JSON.parse(process.env.VCAP_SERVICES);   
+    if(vcap['Object-Storage']) {
+    	swift = vcap['Object-Storage'][0]; 
+
+    	var prefix = "fs.swift2d.service.softlayer.";
+
+    	sc.setHadoopConfiguration("fs.swift2d.impl", "com.ibm.stocator.fs.ObjectStoreFileSystem"); 
+    	sc.setHadoopConfiguration(prefix+"auth.url", swift.credentials.auth_url + "/v3/auth/tokens");
+    	sc.setHadoopConfiguration(prefix+"tenant", swift.credentials.projectId);
+    	sc.setHadoopConfiguration(prefix+"public", true);
+    	sc.setHadoopConfiguration(prefix+"username", swift.credentials.userId);
+    	sc.setHadoopConfiguration(prefix+"password", swift.credentials.password);
+    	sc.setHadoopConfiguration(prefix+"region", swift.credentials.region);
+    	sc.setHadoopConfiguration(prefix+"auth.method", "keystoneV3");
+    }
+    console.log("##Starting spark VCAP:" + JSON.stringify(vcap));
+}
+
+
+
 
 // Allow bypass of using saved data for debug/dev sake.
 if (use_saved_data) {

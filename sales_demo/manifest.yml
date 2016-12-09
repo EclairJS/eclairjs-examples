@@ -7,8 +7,7 @@ applications:
   host: sales-demo
   disk_quota: 1024M
   env:
-    JUPYTER_HOST: 169.54.140.107
-    BATCH_DATA: hdfs://10.122.193.195:8020/data/data/batch/*
-    DATES_DATA: hdfs://10.122.193.195:8020/data/data/models/dates/V11_arr
-    PRICE_DATA: hdfs://10.122.193.195:8020/data/data/models/avgsaleprice.parquet
-    KAFKA_HOST: 10.122.193.195
+    BATCH_DATA: swift2d://sales.salesdemo/batch/*
+    PRICE_DATA: swift2d://sales.salesdemo/avgsaleprice.parquet
+    DATES_DATA: swift2d://sales.salesdemo/V11_arr
+

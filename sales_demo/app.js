@@ -97,8 +97,8 @@ function enqueue(item) {
   streaming_data[key].push({
     time: item.time,
     sales: item.sales,
-    price: item.price,
-    dateData: item.dateData
+    price: item.price//,
+    //dateData: item.dateData
   });
 
   return streaming_data[key];
@@ -167,7 +167,8 @@ function handleHourlyData(item) {
     //console.log("new day theDate: ",new Date(theDate));
     //console.log("new day item.date: ",new Date(item.date));
     //if our date is 0 it means we just started no prediction data.
-    var p = demo.predict(item.date, item.dateData);
+    //var p = demo.predict(item.date, item.dateData);
+    var p = demo.predict(item.date);
     p.then(function(val) {
       console.log("got new prediction: ", JSON.stringify(val));
       todaysPredictedSales = val;

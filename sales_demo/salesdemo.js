@@ -19,7 +19,6 @@ var spark = new eclairjs();
 
 var KafkaUtils = require('eclairjs-kafka');
 var kafkaUtils = new KafkaUtils({
-  jar: 'file:/Users/bburns/dev/eclairjs/external/eclairjs-kafka/server/target/eclairjs-kafka-0.9-jar-with-dependencies.jar',
   eclairjs: spark
 });
 
@@ -27,13 +26,13 @@ spark.addModule(kafkaUtils);
 
 var Swift = require('eclairjs-swift');
 spark.addModule(new Swift({
-  jar: 'file:/Users/bburns/dev/eclairjs/external/eclairjs-swift/server/target/eclairjs-swift-0.9-jar-with-dependencies.jar',
-  service: 'salesdemodata',
+  service: 'salesdemo',
   eclairjs: spark
 }));
 
 
 var session = spark.sql.SparkSession.builder()                                  
+// .master("spark://127.0.0.1:7077")
  .appName("Retail Sales Demo")                                                        
  .getOrCreate();  
 
@@ -100,20 +99,26 @@ function createModel(rdd) {
     }).filter(function(x) {
         //filter out 0 units sold and 0 price
         return (x[5] > 0 && x[4] > 0 && x[6] == "SALE");
-    }).map(function(t, RowFactory, SqlDate, SqlTimestamp) {
-        var parts = t[2].match(/(\d+)/g);
-        var date = new Date(parts[0], parts[1]-1, parts[2]);
-        var time = new Date(Date.parse(t[2]+" "+t[3]));
-        var row = RowFactory.create([
-            t[0], 
-            t[1], 
-            new SqlDate(date.getTime()),
-            new SqlTimestamp(time.getTime()), 
-            parseFloat(t[4]), 
-            parseFloat(t[5]), 
-            t[6]]);
+    //}).map(function(t, RowFactory, SqlDate, SqlTimestamp) {
+    }).map(function(t) {
+      var SqlDate = Java.type('org.eclairjs.nashorn.wrap.sql.SqlDate');
+      var SqlTimestamp = Java.type('org.eclairjs.nashorn.wrap.sql.SqlTimestamp');
+      var RowFactory = Java.type('org.eclairjs.nashorn.wrap.sql.RowFactory');
+
+      var parts = t[2].match(/(\d+)/g);
+      var date = new Date(parts[0], parts[1]-1, parts[2]);
+      var time = new Date(Date.parse(t[2]+" "+t[3]));
+      var row = RowFactory.create([
+        t[0], 
+        t[1], 
+        new SqlDate(date.getTime()),
+        new SqlTimestamp(time.getTime()), 
+        parseFloat(t[4]), 
+        parseFloat(t[5]), 
+        t[6]]);
         return row;
-    }, [spark.sql.RowFactory,spark.sql.SqlDate,spark.sql.SqlTimestamp]);
+    //}, [spark.sql.RowFactory,spark.sql.SqlDate,spark.sql.SqlTimestamp]);
+    }, []);
 
     var df = session.createDataFrame(trainingRDD, schema);
     var df2 = df.join(allDatesInput, "date");
@@ -146,8 +151,7 @@ function createModel(rdd) {
 }
 
 function startKafkaStream(cb) {
-  console.log("Using kafakHost: " + kafkaHost);
-
+  console.log('starting stream');
   //Use Kafka Receiver
   return kafkaUtils.createMessageHubStream(
     ssc, "salesdemo-group", "tlog"
@@ -172,20 +176,20 @@ function startKafkaStream(cb) {
   }).foreachRDD(
     function(rdd, session, schema, allDatesInput) {
       var df = session.createDataFrame(rdd, schema);
-      var df2 = df.join(allDatesInput, "date");
-      var rows = df2.collect();
+      //var df2 = df.join(allDatesInput, "date");
+      //var rows = df2.collect();
+      var rows = df.collect();
 
       var data = [];
       rows.forEach(function(row) {
         data.push(JSON.stringify({
           "price": row.get(5),
           "sales": row.get(4),
-          "date": row.getDate(0).getJavaObject().getTime(),
-          "time": row.getTimestamp(3).getTime(),
-          "dateData": row.get(7)
+          "date": row.getDate(2).getJavaObject().getTime(),
+          "time": row.getTimestamp(3).getTime()//,
+          //"dateData": row.get(7)
         }));
       });
-      print("5");
 
       return data;
     }, 
@@ -201,11 +205,25 @@ function startKafkaStream(cb) {
     }
   ).then(function() {
     ssc.start();
+  }).catch(function(err) {
+    console.log("error starting stream" + err);
+  });
+}
+
+function getDateData(date) {
+  return new Promise(function(resolve, reject) {
+    var p = allDatesInput.where("date = '" + date + "'").toJSON();
+    p.then(function(v) {
+      var j = JSON.parse(v);
+      var arr = j[0].values[1];
+      resolve(arr);
+    }).catch(reject);
   });
 }
 
 //function predict(date, totalPrice, totalSales, dateData, model) {
-function predict(date, dateData, model) {
+//function predict(date, dateData, model) {
+function predict(date, model) {
   return new Promise(function(resolve, reject) {
     var d = new Date(date);
     var month = d.getUTCMonth() + 1
@@ -218,19 +236,21 @@ function predict(date, dateData, model) {
     }
     var key = d.getUTCFullYear() + "-" + month + "-" + day;
     console.log("key = " + key);
-    var price = avgPriceData[key];
-    console.log("price = " + price);
-    var features = [Math.log(maxPrice / price)].concat(dateData);
+    getDateData(key).then(function(dateData) {
+      var price = avgPriceData[key];
+      console.log("price = " + price);
+      var features = [Math.log(maxPrice / price)].concat(dateData);
 
-    console.log("features = " + features);
+      console.log("features = " + features);
 
-    model.predict(spark.mllib.linalg.Vectors.dense(features)).then(function(sales) {
-      resolve({
-        //"actualSales": units,
-        "predictedSales": Math.exp(sales) - 1,
-        "price": price,
-        "date": date
-      });
+      model.predict(spark.mllib.linalg.Vectors.dense(features)).then(function(sales) {
+        resolve({
+          //"actualSales": units,
+          "predictedSales": Math.exp(sales) - 1,
+          "price": price,
+          "date": date
+        });
+      }).catch(reject);
     }).catch(reject);
   });
 };
@@ -280,9 +300,11 @@ RetailSalesDemo.prototype.stop = function(callback) {
 }
 
 //RetailSalesDemo.prototype.predict = function(date, totalPrice, totalSales, dateData) {
-RetailSalesDemo.prototype.predict = function(date, dateData) {
+//RetailSalesDemo.prototype.predict = function(date, dateData) {
+RetailSalesDemo.prototype.predict = function(date) {
   //return predict(date, totalPrice, totalSales, dateData,  model);
-  return predict(date, dateData,  model);
+  //return predict(date, dateData,  model);
+  return predict(date, model);
 }
 
 RetailSalesDemo.prototype.query = function(sql) {

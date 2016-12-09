@@ -1,10 +1,10 @@
-var eclair = require('eclairjs');
-var spark = new eclairjs();
 
+var eclairjs = require('eclairjs');
+var spark = new eclairjs();
 /*
  * Globals
  */
-
+console.log("## HOUSING_DIR = " + process.env.HOUSING_DIR);
 var housing_a_file_path = process.env.HOUSING_DIR + '/ss13husa.csv';
 var housing_b_file_path = process.env.HOUSING_DIR + '/ss13husb.csv';
 var states_file_path = process.env.HOUSING_DIR + '/states.csv';
@@ -15,13 +15,32 @@ var housing_avgs_by_state_results;
  * Start a Spark session
  */
 
-var sparkConf = new spark.SparkConf(false)
-.set("spark.executor.memory", "10g")
-.set("spark.driver.memory", "10g")
-.setMaster(process.env.SPARK_MASTER || "local[*]")
-.setAppName("geographical");
+var swift;
+if(process.env.VCAP_SERVICES) {
+    var vcap = JSON.parse(process.env.VCAP_SERVICES);   
+    if(vcap['Object-Storage']) {
+    	swift = vcap['Object-Storage'][0]; 
+    }
+}
+console.log("##Starting spark VCAP:" + JSON.stringify(vcap));
+var session = spark.sql.SparkSession.builder()
+.appName("geographical")
+.config("spark.executor.memory", "10g")
+.config("spark.driver.memory", "10g")
+.getOrCreate();
 
-var sc = new spark.SparkContext(sparkConf);
+var prefix = "fs.swift2d.service.softlayer.";
+var sc = session.sparkContext();
+
+sc.setHadoopConfiguration("fs.swift2d.impl", "com.ibm.stocator.fs.ObjectStoreFileSystem"); 
+sc.setHadoopConfiguration(prefix+"auth.url", swift.credentials.auth_url + "/v3/auth/tokens");
+sc.setHadoopConfiguration(prefix+"tenant", swift.credentials.projectId);
+sc.setHadoopConfiguration(prefix+"public", true);
+sc.setHadoopConfiguration(prefix+"username", swift.credentials.userId);
+sc.setHadoopConfiguration(prefix+"password", swift.credentials.password);
+sc.setHadoopConfiguration(prefix+"region", swift.credentials.region);
+sc.setHadoopConfiguration(prefix+"auth.method", "keystoneV3");
+
 var sqlContext = new spark.sql.SQLContext(sc);
 
 

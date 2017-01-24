@@ -5,6 +5,7 @@
 var port = location.port ? location.port : '80';
 var socket = new WebSocket("ws://"+location.hostname+":"+port);
 var thumbnails_off = true;
+var displayedTop25;
 
 socket.onopen = function() {
     // heart beat, stops bluemix from closing connections
@@ -55,7 +56,7 @@ function restService (type, req, callback) {
 function movieSearch(e) {
     // As per DF reset results with each new search instead of appending
     resetSearchResults("stars", "movieSearchResults");
-    document.getElementById("top25").innerHTML = "";
+    //document.getElementById("top25").innerHTML = "";
 	restService('get', "movie_recommender/rest/movieID?movie="+e.target.value+"&movieSearch=true", function(results){
 		console.log(results);
 		var movieSearchResults = document.getElementById("movieSearchResults");
@@ -149,6 +150,9 @@ function createRatingWidget(movie){
 
 function createTop25List(top25, original25) {
     top25 = top25 && top25.length ? top25 : [];
+    if (top25.length > 0 && (JSON.stringify(displayedTop25) == JSON.stringify(top25))) {
+    	return;
+    }
     var top25Div = document.getElementById("top25");
     // replace any previous results with new ones
     top25Div.innerHTML = original25 ? 
@@ -167,6 +171,7 @@ function createTop25List(top25, original25) {
             top25DivResults.appendChild(div);
             var ratingWidget = createRatingWidget(movie);
             div.appendChild(ratingWidget);
+            displayedTop25 = top25; 
         } else {
             return;
         }

@@ -9,6 +9,6 @@
     "express": "3.2.6",
     "jade": "*",
     "ws": "~1.0",
-    "eclairjs": "git+https://github.com/EclairJS/eclairjs.git#dev"
+    "eclairjs": "git+https://github.com/EclairJS/eclairjs.git#branch-0.10"
   }
 }

@@ -71,6 +71,7 @@ wss.on('connection', function(ws) {
 });
 
 var currentTop25;
+
 movie_recommender.startUpdates(function(data){
     // we got data from the movie_recommender service
     var data = JSON.parse(data);

@@ -1,5 +1,8 @@
 var eclairjs = require('eclairjs');
-var spark = new eclairjs();
+var timers = require('timers');
+
+var spark; 
+var spark2; 
 
 /*
  * Globals
@@ -8,7 +11,7 @@ var spark = new eclairjs();
 var pathToSmallDataset = process.env.SMALL_DATASET;
 var pathToCompleteDataset = process.env.LARGE_DATASET;
 
-var use_saved_data = process.env.USE_SAVED_DATA || true;
+var use_saved_data = process.env.USE_SAVED_DATA || false;
 var saved_data_path = process.env.SAVED_DATA || "/tmp";
 var complete_ratings_data_path = saved_data_path +'/complete_ratings_data';
 var predictionModleValuesDFPath = saved_data_path + '/predictionModleValuesDF';
@@ -16,8 +19,10 @@ var complete_movies_titlesDFPath = saved_data_path + '/complete_movies_titlesDF'
 var complete_movies_data_path = saved_data_path + '/complete_movies_data';
 var complete_movies_titles_path = saved_data_path + '/complete_movies_titles';
 var movie_rating_counts_RDD_path = saved_data_path + '/movie_rating_counts_RDD';
-var new_user_recommendations_rating_title_and_count_RDD2_filtered_path = saved_data_path + '/new_user_recommendations_rating_title_and_count_RDD2_filtered';
+var new_user_recommendations_rating_title_and_count_DF_filtered_path = saved_data_path + '/new_user_recommendations_rating_title_and_count_DF_filtered';
+var new_user_recommendations_rating_title_and_count_DF_path = saved_data_path + '/new_user_recommendations_rating_title_and_count_DF';
 var new_ratings_model_path = saved_data_path + '/new_ratings_model';
+var warehouseLocation = saved_data_path +"/spark-warehouse";
 
 var top25Recommendation;
 var rebuildingTop25 = 'complete';
@@ -33,8 +38,9 @@ var seed = 0;
 var complete_movies_data;
 var complete_movies_titles;
 var movie_rating_counts_RDD;
-var new_user_recommendations_rating_title_and_count_RDD2_filtered;
+var new_user_recommendations_rating_title_and_count_DF_filtered;
 var predictionModleValuesDF;
+var new_user_recommendations_rating_title_and_count_DF;
 
 
 /*
@@ -71,11 +77,17 @@ function failureExit(e) {
  * they can be reused.
  */
 function movie_recommender_init() {
+	var sparkSession = getSparkSessionForModel();
+	var sc = sparkSession.sparkContext();
+	configForSwift(sc);
     console.log("starting movie_recommender_init.....");
 	/*
 	 * Load the small movielens data sets we will use them to train the model.
 	 */
 	var small_ratings_raw_data = sc.textFile(pathToSmallDataset + '/ratings.csv');
+	var x = small_ratings_raw_data.randomSplit([0.6, 0.2, 0.2], 0).then(function(split){
+	    	console.log("#### " + split.length);
+	  });
 	small_ratings_raw_data.take(1).then(function(val) {
 		  console.log("Success:", val);
 		  var small_ratings_raw_data_header = val[0];
@@ -89,10 +101,6 @@ function movie_recommender_init() {
 		          return new Rating(tokens[0], tokens[1], tokens[2]);
 		      }, [spark.mllib.recommendation.Rating])
 		      .cache();
-		  // hacking
-		  small_ratings_data.take(3).then(function(result){
-			  console.log("######small_ratings_data: " + JSON.stringify(result));
-		  });
 		  small_ratings_data.randomSplit([0.6, 0.2, 0.2], 0).then(function(split){
   	    	var training_RDD = split[0];
 	    	    var validation_RDD = split[1];
@@ -280,9 +288,6 @@ function movie_recommender_init() {
 								    	            return new Tuple2(ID_with_avg_ratings._1(), coutAvg._1()); // movieID, rating count
 								    	        }, [spark.Tuple2]);
 
-                                            // FIXME: There is something broken with saving data to object files.
-                                            // Both in local mode and running with docker nothing seems to process
-                                            // passed saving movie_rating_counts_RDD.
                                             if (use_saved_data) {		
                                                 /*
                                                  * Save what we have built for quick server spin up on future starts
@@ -310,12 +315,12 @@ function movie_recommender_init() {
                                                 predictionModleValuesDF = sparkSession.createDataFrame([row], schema);
                                                 predictionModleValuesDF.take(1).then(function(result){
                                                     console.log("predictionModleValuesDF result: ",result);
-                                                    predictionModleValuesDF.write().mode('overwrite').json(predictionModleValuesDFPath);
+                                                    predictionModleValuesDF.write().mode('overwrite').parquet(predictionModleValuesDFPath);
                                                 }, function(err){
                                                     console.log('err ' + err);
                                                 });	
                                                  
-                                                complete_movies_titlesDF.write().mode('overwrite').json(complete_movies_titlesDFPath);
+                                                complete_movies_titlesDF.write().mode('overwrite').parquet(complete_movies_titlesDFPath);
                                             }
 								    	   
 								    	    /*
@@ -340,11 +345,14 @@ function movie_recommender_init() {
 }
 
 
+
 /**
  * Updates the top25 movies for the user, this runs "in the background" after the user updates his ratings
  * @param {function} cb callback
  */
 function rateMoviesForUser(cb) {
+	var sparkSession = getSparkSessionForModel();
+	var sc = sparkSession.sparkContext();
         console.log("rating movies for user");
 		rebuildTop25 = 'inProgress';
 
@@ -370,7 +378,6 @@ function rateMoviesForUser(cb) {
 
 	   var complete_data_with_new_ratings_RDD = complete_ratings_data.union(new_user_ratings_RDD);
 
-	   //var new_ratings_model = spark.mllib.recommendation.ALS.train(complete_data_with_new_ratings_RDD, best_rank, iterations, regularization_parameter, blocks, seed);
 	   new_ratings_model = spark.mllib.recommendation.ALS.train(complete_data_with_new_ratings_RDD, best_rank, iterations, regularization_parameter, blocks, seed);
 	   new_ratings_model.save(sc, new_ratings_model_path, true);
 
@@ -378,7 +385,7 @@ function rateMoviesForUser(cb) {
 	   /*
 	    Let's now get some recommendations
 	    */
-
+	   
 	   	 // keep just those not on the ID list
 	    var new_user_unrated_movies_RDD = complete_movies_data
 	        .filter(function (tuple, userMovieRatingHash) {
@@ -402,63 +409,94 @@ function rateMoviesForUser(cb) {
 	            return new Tuple2(rating.product(), rating.rating());
 	        }, [spark.Tuple2]);
 
-	    var new_user_recommendations_rating_title_and_count_RDD = new_user_recommendations_rating_RDD
-	        .join(complete_movies_titles)
-	    	.join(movie_rating_counts_RDD);
+	    var new_user_recommendations_rating_title_and_count_RDD_join1 = new_user_recommendations_rating_RDD
+	        .join(complete_movies_titles);
+    	var new_user_recommendations_rating_title_and_count_RDD = new_user_recommendations_rating_title_and_count_RDD_join1
+    		.join(movie_rating_counts_RDD);
 	    
 	    /*
 	     So we need to flat this down a bit in order to have (Title, Rating, Ratings Count).
 	     */
+	    
+	    // Generate the schema for top 25 movies Dataframe
+  	     var DataTypes = spark.sql.types.DataTypes;
 
+  	     var fields = [];
+  	     fields.push(DataTypes.createStructField("title", DataTypes.StringType, true));
+  	     fields.push(DataTypes.createStructField("predicted_ratings", DataTypes.FloatType, true));
+  	     fields.push(DataTypes.createStructField("ratings_count", DataTypes.IntegerType, true));
+  	     fields.push(DataTypes.createStructField("id", DataTypes.IntegerType, true));
+  	     
+  	     var top25MovieSchema = DataTypes.createStructType(fields);
+
+  	     
 	    var new_user_recommendations_rating_title_and_count_RDD2 = new_user_recommendations_rating_title_and_count_RDD
-	        .map(function (t, Tuple4) {
-	            var x = new Tuple4(t._2()._1()._2(), t._2()._1()._1(), t._2()._2(), t._1());
-	            return x;
-	        }, [spark.Tuple4]);
-	    new_user_recommendations_rating_title_and_count_RDD2.take(3).then(function(result){
+	        .map(function (t, RowFactory) {
+	        	// Tuple4 format = (Title, Predicted Rating, Ratings Count, Movie ID
+	            return RowFactory.create([t._2()._1()._2(), t._2()._1()._1(), t._2()._2(), t._1()]);
+
+	        }, [ spark.sql.RowFactory]);
+	     
+	     new_user_recommendations_rating_title_and_count_RDD2.take(3).then(function(result){
 	    	console.log("new_user_recommendations_rating_title_and_count_RDD2" + JSON.stringify(result));
 	    	
+   	     //Apply the schema to the RDD and create Dataframe
+	       var local_new_user_recommendations_rating_title_and_count_DF = sparkSession.createDataFrame(new_user_recommendations_rating_title_and_count_RDD2
+    		   																				, top25MovieSchema);
+	       local_new_user_recommendations_rating_title_and_count_DF.write()
+	       		.mode('overwrite')	
+	       		.parquet(new_user_recommendations_rating_title_and_count_DF_path).then(function(){
+
+				       refreshMovieRatingsDF(function(){
+				    	   console.log("done updating DF after writting");
+				       }); // now we need to update the DF used for reading the predictions.
+				});
+	      
+   	     
 	    	/*
 	        Finally, get the highest rated recommendations for the new user, filtering out movies with less than 25 ratings.
 	        */
-
-
-	       new_user_recommendations_rating_title_and_count_RDD2_filtered = new_user_recommendations_rating_title_and_count_RDD2
-	           .filter(function (tuple4) {
-	               if (tuple4._3() < 25) {
-	                   return false;
-	               } else {
-	                   return true;
-	               }
-	           });
 	       
-	       getTop25FromRDD(new_user_recommendations_rating_title_and_count_RDD2_filtered, function(top_movies) {
-	    	   new_user_recommendations_rating_title_and_count_RDD2_filtered.saveAsObjectFile(new_user_recommendations_rating_title_and_count_RDD2_filtered_path, true);
+	       new_user_recommendations_rating_title_and_count_DF_filtered = local_new_user_recommendations_rating_title_and_count_DF
+	       																	.filter("ratings_count > 24");
+	       new_user_recommendations_rating_title_and_count_DF_filtered.write()
+	       		.mode('overwrite')
+	       		.parquet(new_user_recommendations_rating_title_and_count_DF_filtered_path);	   	    
+	      
+	       getTop25FromDF(new_user_recommendations_rating_title_and_count_DF_filtered, function(top_movies) {
 	    	   top25Recommendation = top_movies;
+
 	    	   if(cb) {
 	    		   cb(top_movies);
 	    	   }
+	    	   if (rebuildingTop25 == 'needed') {
+		    	   console.log("Pending rating, run model again");
+			    	rebuildingTop25 = 'inprogress';
+			    	rateMoviesForUser(handleTop25Update);
+			    } else {
+			    	rebuildingTop25 = 'complete';
+			    	sessionStopTimer = timers.setTimeout(stopSparkSessionForModel(), 5000);
+			    }
+	    	   
+			   
     	   });
      });
 	    
 
 };
+var sessionStopTimer;
 /**
  * Returns the top 25 rated movies from the RDD by passing them as a argument to the callback function
  * @param rdd
  * @param {function<array>} callback
  */
-function getTop25FromRDD(rdd, callback){
+function getTop25FromDF(df, callback){
 	 /*
     list top 25
     */
-
-	rdd.takeOrdered(25, function (tuple4_a, tuple4_b) {
-           var aRate = tuple4_a._2();
-           var bRate = tuple4_b._2();
-           return aRate > bRate ? -1 : aRate == bRate ? 0 : 1;
-
-  }).then(function(top_movies){
+	console.log("TOP recommended movies :");
+	df.sort(df.col("predicted_ratings").desc()).take(25)
+  .then(function(top_movies){
    	   console.log("TOP recommended movies (with more than 25 reviews):");
 	       for (var i = 0; i < top_movies.length; i++) {
 	           console.log(JSON.stringify(top_movies[i]));
@@ -471,29 +509,6 @@ function getTop25FromRDD(rdd, callback){
   failureExit);
 }
 
-/**
- * Pridicts the rating for movies
- * @param {array} movies
- * @param {function<array>} callback
- * @param {function} errCallback
- */
-function predictRating(movies, callback, errCallback) {
-	 /*
-    Another useful usecase is getting the predicted rating for a particular movie for a given user.
-    */
-	var errCb = errCallback ? errCallback : failureExit;
-	var m = [];
-	movies.forEach(function(movie){
-		m.push(new spark.Tuple2(0, movie._values[0]))
-	});
-   var my_movie = sc.parallelizePairs(m); // Quiz Show (1994)
-   var individual_movie_rating_RDD = new_ratings_model.predict(my_movie);
-   individual_movie_rating_RDD.take(10).then(function(result){
- 	  console.log("Predicted rating for movie " + JSON.stringify(result));
- 	  callback(result);
-
-   },errCb);
-}
 
 /**
  * REST Service returns JSON, send top 25 movies as JSON
@@ -514,6 +529,7 @@ exports.top25 = function(req, res){
  * @param {httpResponse} res
  */
 exports.predictedRatingForMovie = function(req, res){
+	// FIXME just use the DataFrame from the last run!
 	if (top25Recommendation) {
 	// Register the DataFrame as a table.
 		var id = parseInt(req.query.id); // FIXME get returns a promise, why? the data is right in the object
@@ -536,36 +552,23 @@ exports.predictedRatingForMovie = function(req, res){
  * @param {httpResponse} res
  */
 exports.movieID = function(req, res){
-	if (top25Recommendation) {
-		// Register the DataFrame as a table.
-		//var col = complete_movies_titlesDF.col("id");
-		var col2 = complete_movies_titlesDF.col("title");
-	    var testCol = col2.contains(req.query.movie /*"Father of the Bride"*/);
-	    var result = complete_movies_titlesDF.filter(testCol);
-		result.take(10).then(function(r){
-			predictRating(r, function(results){
-				var movies = []
-				r.forEach(function(movie){
-					var m = {}
-					m.id = movie._values[0];
-					m.title = movie._values[1];
-					results.forEach(function(pr){
-						if (pr.product == m.id) {
-							m.rating = pr.rating;
-						}
-					});
-					movies.push(m);
-				});
-				res.send( JSON.stringify(movies));
-	            // If this is result for a movieSearch send whatever current
-	            // top25 is to websocket.
-	            if (req.query.movieSearch === 'true' && top25Recommendation) {
-	                //console.log("User movieSearch - send top25 to web socket");
-	                handleTop25Update(top25Recommendation, true);
-	            }
+	if (new_user_recommendations_rating_title_and_count_DF) {
+		var col2 = new_user_recommendations_rating_title_and_count_DF.col("title");
+	    var testCol = col2.contains(req.query.movie);
+	    var resultDF = new_user_recommendations_rating_title_and_count_DF.filter(testCol);
+	    resultDF.take(10).then(function(r){
+			console.log("from the DF: "+ JSON.stringify(r));
+			var movies = []
+			r.forEach(function(movie){
+				var m = {};
+				m.id = movie.get(movie.fieldIndex("id"));
+		        m.title = movie.get(movie.fieldIndex("title"));
+		        m.rating = movie.get(movie.fieldIndex("predicted_ratings"));
+		        m.numberOfRatings = movie.get(movie.fieldIndex("ratings_count"));
+				movies.push(m);
 			});
-			
-	     }, failureExit);
+			res.send( JSON.stringify(movies));
+		}, failureExit);
 	} else {
 		res.send( JSON.stringify({"message": "Still building modles, try again later."}));
 	}
@@ -600,18 +603,27 @@ exports.movieTitle = function(req, res){
  * @param {httpResponse} res
  */
 exports.rateMovie = function(req, res){
-	if (top25Recommendation) {
+	console.log("rateMovie");
+	if (new_user_recommendations_rating_title_and_count_DF /* top25Recommendation */) {
 		//var rating = { "id":req.body.id, "rating":req.body.rating};
 		userMovieRatingHash[req.query.id] = parseInt(req.query.rating);
 	    // update the predicted ratings for this user
 	    // top25Update will be broadcast over websocket
 		if (rebuildingTop25 == 'complete') {
 			rebuildingTop25 = 'inprogress';
-			rateMoviesForUser(handleTop25Update);
+			loadSavedData(function() {
+				console.log("back from loadSavedData");
+				rateMoviesForUser(function(){
+					console.log("back from rateMoviesForUser");
+					handleTop25Update(top25Recommendation);
+				});
+			});
+			
 		} else {
+			console.log('rateMovie inprogress, so we will put on the mark as needed');
 			rebuildingTop25 = 'needed';
 		}
-		
+		handleTop25Update(top25Recommendation);
 	    // send back userHash
 	    res.send(JSON.stringify(userMovieRatingHash));
 	} else {
@@ -640,28 +652,108 @@ exports.rebuild = function(req, res){
  * @param fromSearch
  */
 function handleTop25Update(updatedTop25, fromSearch){
-    //console.log("handleTop25Update: ",JSON.stringify(updatedTop25));
-    var top25 = [];
-    updatedTop25.forEach(function(movie) {
-        m = {};
-        m.id = movie[3];
-        m.title = movie[0];
-        m.rating = movie[1];
-        m.numberOfRatings = movie[2];
-        top25.push(m);
-    });
-    if (dataCallback) {
-    	dataCallback(JSON.stringify({type:'top25Update', data: top25, original25: fromSearch || false}));
+    console.log("handleTop25Update: from search  " + fromSearch);
+	if (new_user_recommendations_rating_title_and_count_DF) {
+//		var col2 = new_user_recommendations_rating_title_and_count_DF.col("title");
+//	    var testCol = col2.contains(req.query.movie);
+		refreshMovieRatingsDF(function(df){
+			 var resultDF = df.filter("ratings_count > 24");
+			    getTop25FromDF(resultDF, 
+			    /*resultDF.take(25).then(*/function(r){
+					console.log("from the DF: "+ JSON.stringify(r));
+					var movies = []
+					r.forEach(function(movie){
+						var m = {};
+						m.id = movie.get(movie.fieldIndex("id"));
+				        m.title = movie.get(movie.fieldIndex("title"));
+				        m.rating = movie.get(movie.fieldIndex("predicted_ratings"));
+				        m.numberOfRatings = movie.get(movie.fieldIndex("ratings_count"));
+						movies.push(m);
+					});
+					if (dataCallback) {
+				    	dataCallback(JSON.stringify({type:'top25Update', data: movies, original25: fromSearch || false}));
+					}
+
+		});
+	   
+	    }, function(){
+	    	console.log("handleTop25Update DF error");
+	    });
 	}
-    if (rebuildingTop25 == 'needed') {
-    	rebuildingTop25 = 'inprogress';
-    	rateMoviesForUser(handleTop25Update);
-    } else {
-    	rebuildingTop25 = 'complete';
-    }
 
 }
 
+function refreshMovieRatingsDF(callback) {
+    new_user_recommendations_rating_title_and_count_DF = getSparkSessionForMovieSearch()
+    	.read()
+    	.parquet(new_user_recommendations_rating_title_and_count_DF_path);
+    new_user_recommendations_rating_title_and_count_DF.take(1).then(function(r){
+    	console.log("refreshMovieRatingsDF complete");
+    	if(callback) {
+    		callback(new_user_recommendations_rating_title_and_count_DF);
+    	}
+    })
+}
+
+var sparkSessionForMovieModel;
+
+function getSparkSessionForModel() {
+	if (sessionStopTimer) {
+		timers.clearTimeout(sessionStopTimer);
+		sessionStopTimer = null;
+	}
+	if (!sparkSessionForMovieModel) {
+		spark = new eclairjs();
+		sparkSessionForMovieModel = spark.sql.SparkSession.builder()
+		.appName("Movie Recommender Express")
+		.config("spark.executor.memory", "10g")
+		.config("spark.driver.memory", "6g")
+		//.config("spark.sql.warehouse.dir", warehouseLocation)
+		//.enableHiveSupport()
+		.getOrCreate();
+		var sc = sparkSessionForMovieModel.sparkContext();
+		configForSwift(sc);
+	}
+	
+	return sparkSessionForMovieModel;
+}
+
+function stopSparkSessionForModel() {
+	if (sparkSessionForMovieModel) {
+		sparkSessionForMovieModel.stop().then(function() {
+			sparkSessionForMovieModel = null
+			getSparkSessionForModel();
+			  });
+	}
+}
+
+var sparkSessionForMovieSearch;
+
+function getSparkSessionForMovieSearch() {
+	if (!sparkSessionForMovieSearch) {
+		spark2 = new eclairjs();
+		sparkSessionForMovieSearch = spark2.sql.SparkSession.builder()
+		.appName("Movie Recommender Rating Search from NodeJS Express")
+		//.config("spark.sql.warehouse.dir", warehouseLocation)
+		//.enableHiveSupport()
+		.getOrCreate();
+		var sc = sparkSessionForMovieSearch.sparkContext();
+		configForSwift(sc);
+		
+	}
+	
+	return sparkSessionForMovieSearch;
+	
+}
+
+function stopSparkSessionForMovieSearch() {
+	if (sparkSessionForMovieSearch) {
+		sparkSessionForMovieSearch.stop().then(function() {
+			sparkSessionForMovieSearch = null
+			getSparkSessionForMovieSearch();
+			  });
+	}
+}
 
 /**
  * Start sending data updates to node server so it can farm out to clients attatched to websocket
@@ -680,63 +772,51 @@ exports.rate = function(req, res){
   res.render('movie_recommender/rate', { title: 'Movie Recommender' });
 };
 
-/*
- * Start a Spark session.
- */
+function configForSwift(sc){
+	var swift;
+	if(process.env.VCAP_SERVICES) {
+	    var vcap = JSON.parse(process.env.VCAP_SERVICES);   
+	    if(vcap['Object-Storage']) {
+	    	swift = vcap['Object-Storage'][0]; 
+	
+	    	var prefix = "fs.swift2d.service.softlayer.";
+	
+	    	sc.setHadoopConfiguration("fs.swift2d.impl", "com.ibm.stocator.fs.ObjectStoreFileSystem"); 
+	    	sc.setHadoopConfiguration(prefix+"auth.url", swift.credentials.auth_url + "/v3/auth/tokens");
+	    	sc.setHadoopConfiguration(prefix+"tenant", swift.credentials.projectId);
+	    	sc.setHadoopConfiguration(prefix+"public", true);
+	    	sc.setHadoopConfiguration(prefix+"username", swift.credentials.userId);
+	    	sc.setHadoopConfiguration(prefix+"password", swift.credentials.password);
+	    	sc.setHadoopConfiguration(prefix+"region", swift.credentials.region);
+	    	sc.setHadoopConfiguration(prefix+"auth.method", "keystoneV3");
 
-/*
-var sparkConf = new spark.SparkConf(false)
-.set("spark.executor.memory", "10g")
-.set("spark.driver.memory", "6g")
-.setMaster(process.env.SPARK_MASTER || "local[*]")
-.setAppName("movie_recommender");
-var sc = new spark.SparkContext(sparkConf);
-var sqlContext = new spark.sql.SQLContext(sc);
-*/
-
-var sparkSession = spark.sql.SparkSession.builder()
-.appName("Movie Recommender Express")
-.config("spark.executor.memory", "10g")
-.config("spark.driver.memory", "6g")
-.getOrCreate();
-var sc = sparkSession.sparkContext();
-
-var swift;
-if(process.env.VCAP_SERVICES) {
-    var vcap = JSON.parse(process.env.VCAP_SERVICES);   
-    if(vcap['Object-Storage']) {
-    	swift = vcap['Object-Storage'][0]; 
-
-    	var prefix = "fs.swift2d.service.softlayer.";
-
-    	sc.setHadoopConfiguration("fs.swift2d.impl", "com.ibm.stocator.fs.ObjectStoreFileSystem"); 
-    	sc.setHadoopConfiguration(prefix+"auth.url", swift.credentials.auth_url + "/v3/auth/tokens");
-    	sc.setHadoopConfiguration(prefix+"tenant", swift.credentials.projectId);
-    	sc.setHadoopConfiguration(prefix+"public", true);
-    	sc.setHadoopConfiguration(prefix+"username", swift.credentials.userId);
-    	sc.setHadoopConfiguration(prefix+"password", swift.credentials.password);
-    	sc.setHadoopConfiguration(prefix+"region", swift.credentials.region);
-    	sc.setHadoopConfiguration(prefix+"auth.method", "keystoneV3");
-    }
-    console.log("##Starting spark VCAP:" + JSON.stringify(vcap));
+	    }
+	    console.log("##Starting spark VCAP:" + JSON.stringify(vcap));
+	}
 }
 
-
-
-
-// Allow bypass of using saved data for debug/dev sake.
-if (use_saved_data) {
-    /* 
+function loadSavedData(callback) {
+	/*
+	 * Start a Spark session for the model.
+	 */
+	
+	var sparkSession = getSparkSessionForModel();
+	var sc = sparkSession.sparkContext();
+	configForSwift(sc);
+	var sparkSessionForMovieRatingSearch = getSparkSessionForMovieSearch();
+	
+	 /* 
      * First try to load saved model and RDD's that have been computed in the passed
      */
 
     complete_ratings_data = sc.objectFile(complete_ratings_data_path); 
-    predictionModleValuesDF = sparkSession.read().json(predictionModleValuesDFPath);
-    complete_movies_titlesDF = sparkSession.read().json(complete_movies_titlesDFPath);
+    predictionModleValuesDF = sparkSession.read().parquet(predictionModleValuesDFPath);
+    complete_movies_titlesDF = sparkSession.read().parquet(complete_movies_titlesDFPath);
     complete_movies_data = sc.objectFile(complete_movies_data_path); 
     complete_movies_titles = spark.rdd.PairRDD.fromRDD(sc.objectFile(complete_movies_titles_path));
     movie_rating_counts_RDD = spark.rdd.PairRDD.fromRDD(sc.objectFile(movie_rating_counts_RDD_path));
-    new_user_recommendations_rating_title_and_count_RDD2_filtered = sc.objectFile(new_user_recommendations_rating_title_and_count_RDD2_filtered_path);
+    new_user_recommendations_rating_title_and_count_DF_filtered = sparkSession.read().parquet(new_user_recommendations_rating_title_and_count_DF_filtered_path);
+   // new_user_recommendations_rating_title_and_count_DF = sparkSessionForMovieRatingSearch.read().json(new_user_recommendations_rating_title_and_count_DF_path);
 
     /*
      * We need to do a take, to actually determine if the RDD's and models where loaded.
@@ -748,7 +828,8 @@ if (use_saved_data) {
                  complete_movies_data.take(1),
                  complete_movies_titles.take(1),
                  movie_rating_counts_RDD.take(1),
-                 new_user_recommendations_rating_title_and_count_RDD2_filtered.take(1)
+                 new_user_recommendations_rating_title_and_count_DF_filtered.take(1)
+                // new_user_recommendations_rating_title_and_count_DF.take(1)
                  ]).then(function(resluts){
                      /*
                       * The saved RDDs and model were loaded, so we can reusse them
@@ -762,28 +843,38 @@ if (use_saved_data) {
         seed = row.get(row.fieldIndex('seed'));
         // load the model
         new_ratings_model = spark.mllib.recommendation.MatrixFactorizationModel.load(sc, new_ratings_model_path);
-        // check to see if the model loaded from a saved model.
-        predictRating([{"_values": [500]}], function(result) {
-            console.log("Model is loaed " + JSON.stringify(result));
-            getTop25FromRDD(new_user_recommendations_rating_title_and_count_RDD2_filtered, function(top_movies) {
-                top25Recommendation = top_movies;
-                rebuildingTop25 = 'complete';
-            });
-        }, function(err) {
-            // the model was never saved so build it now
-            console.log(err);
-            rateMoviesForUser();
-            
-        })
-        
+        callback(); // FIXME we should use a promise
     }, function(err){
         /*
          * RDDs and models do not exist so we need to build them
          */
         console.log('No saved data rebuilding models and data, this could take a while...');
         movie_recommender_init();
+        callback(); // FIXME we should use a promise
+        
     });
-} else {
-    console.log('No saved data rebuilding models and data, this could take a while...');
-    movie_recommender_init();
+
 }
+
+function init() {
+
+	// Allow bypass of using saved data for debug/dev sake.
+	if (use_saved_data && use_saved_data.toUpperCase() == "TRUE") {
+		loadSavedData(function(){
+			 getTop25FromDF(new_user_recommendations_rating_title_and_count_DF_filtered, function(top_movies) {
+			        top25Recommendation = top_movies;
+			        refreshMovieRatingsDF(function(){
+			        	rebuildingTop25 = 'complete';
+				        handleTop25Update(top_movies);
+			        });
+			        
+			 });
+		});
+
+	} else {
+	    movie_recommender_init();
+	}
+
+}
+
+init();
